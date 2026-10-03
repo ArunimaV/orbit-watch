@@ -13,6 +13,7 @@ import {
   HeadingPitchRange,
   ImageryLayer,
   Ion,
+  LabelStyle,
   Math as CesiumMath,
   TileMapServiceImageryProvider,
   buildModuleUrl,
@@ -51,6 +52,21 @@ function formatLocal(iso: string): string {
 
 function toCartesian(sample: TrackSample): Cartesian3 {
   return Cartesian3.fromDegrees(sample.geodetic.lonDeg, sample.geodetic.latDeg, sample.geodetic.altKm * 1000);
+}
+
+function IdleCamera() {
+  const { viewer } = useCesium();
+
+  useEffect(() => {
+    if (!viewer || viewer.isDestroyed()) return;
+    viewer.entities.removeAll();
+    viewer.camera.flyTo({
+      destination: Cartesian3.fromDegrees(8, 20, 20_000_000),
+      duration: 1.2,
+    });
+  }, [viewer]);
+
+  return null;
 }
 
 function EncounterScene({
@@ -107,11 +123,15 @@ function EncounterScene({
         },
         label: {
           text: label,
-          font: "13px sans-serif",
-          pixelOffset: new Cartesian2(0, -28),
+          font: "bold 16px sans-serif",
+          pixelOffset: new Cartesian2(0, -36),
           fillColor: Color.WHITE,
+          outlineColor: Color.BLACK,
+          outlineWidth: 2,
+          style: LabelStyle.FILL_AND_OUTLINE,
           showBackground: true,
-          backgroundColor: Color.fromCssColorString("#07131a").withAlpha(0.82),
+          backgroundColor: Color.fromCssColorString("#07131a").withAlpha(0.92),
+          backgroundPadding: new Cartesian2(10, 6),
           disableDepthTestDistance: Number.POSITIVE_INFINITY,
         },
       });
@@ -264,6 +284,7 @@ export default function CesiumGlobe({ event }: { event: RankedEvent | null }) {
             fullscreenButton={false}
             className="orbit-cesium"
           >
+            {error && <IdleCamera />}
             {encounter && event && (
               <EncounterScene
                 ours={encounter.tracks.ours}
@@ -280,6 +301,11 @@ export default function CesiumGlobe({ event }: { event: RankedEvent | null }) {
         <div className="pointer-events-none absolute top-3 left-3 flex flex-col gap-1 text-[11px]">
           <span className="text-accent">cyan · ours</span>
           <span className="text-act">red · other object</span>
+          {event && encounter && (
+            <span className="mt-1 rounded bg-background/90 px-2 py-1 font-mono text-xs text-foreground">
+              TCA · {formatRange(event.rangeKm)} · {event.relSpeedKms.toFixed(3)} km/s
+            </span>
+          )}
         </div>
         {(loading || error || !event) && (
           <p className="absolute right-3 bottom-16 left-3 rounded bg-background/80 px-3 py-2 text-xs text-muted">
