@@ -1,5 +1,7 @@
 /** Demo satellite: SwissCube, EPFL's 1U CubeSat. ISS remains a secondary example. */
 export const DEMO_NORAD = 35932;
+/** Default encounter on the globe: SwissCube vs SL-8 DEB. */
+export const DEMO_ENCOUNTER_NORAD = 19831;
 export const ISS_NORAD = 25544;
 export const DEFAULT_HORIZON_HOURS = 24 * 7;
 

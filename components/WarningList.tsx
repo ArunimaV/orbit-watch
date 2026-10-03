@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { DEMO_NORAD } from "@/lib/constants";
+import { useEffect, useRef, useState } from "react";
+import { DEMO_ENCOUNTER_NORAD, DEMO_NORAD } from "@/lib/constants";
 import type { DismissedGroup, RankedEvent, Tier } from "@/lib/types";
 
 interface ConjunctionsResponse {
@@ -45,13 +45,21 @@ function formatScore(score: number): string {
   return score.toFixed(1);
 }
 
-export function WarningList() {
+export function WarningList({
+  selectedId,
+  onSelect,
+}: {
+  selectedId: string | null;
+  onSelect: (event: RankedEvent | null) => void;
+}) {
   const [draft, setDraft] = useState(String(DEMO_NORAD));
   const [norad, setNorad] = useState(String(DEMO_NORAD));
   const [horizon, setHorizon] = useState("168");
   const [data, setData] = useState<ConjunctionsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const selectedIdRef = useRef(selectedId);
+  selectedIdRef.current = selectedId;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -67,6 +75,10 @@ export function WarningList() {
       .then((body) => {
         setData(body);
         setError(null);
+        const stillSelected = body.ranked.some((item) => item.id === selectedIdRef.current);
+        if (!stillSelected) {
+          onSelect(body.ranked.find((item) => item.other.noradId === DEMO_ENCOUNTER_NORAD) ?? body.ranked[0] ?? null);
+        }
       })
       .catch((cause: unknown) => {
         if (cause instanceof DOMException && cause.name === "AbortError") return;
@@ -76,7 +88,7 @@ export function WarningList() {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [norad, horizon]);
+  }, [norad, horizon, onSelect]);
 
   return (
     <section className="flex min-h-0 flex-col bg-panel">
@@ -173,7 +185,18 @@ export function WarningList() {
             )}
 
             {data.ranked.map((event) => (
-              <article key={event.id} className={`rounded border border-l-4 bg-background px-3 py-2 ${TIER_COLOR[event.tier]}`}>
+              <article
+                key={event.id}
+                className={`rounded border border-l-4 bg-background px-3 py-2 ${TIER_COLOR[event.tier]} ${
+                  event.id === selectedId ? "ring-1 ring-accent" : ""
+                }`}
+              >
+                <button
+                  type="button"
+                  onClick={() => onSelect(event)}
+                  aria-pressed={event.id === selectedId}
+                  className="w-full text-left"
+                >
                 <div className="flex items-baseline justify-between gap-2">
                   <h2 className="text-sm font-medium text-foreground">
                     {event.other.name}
@@ -214,6 +237,7 @@ export function WarningList() {
                 {event.syntheticFields.length > 0 && (
                   <p className="mt-1 text-[11px] text-muted">Not from SOCRATES: {event.syntheticFields.join(", ")}</p>
                 )}
+                </button>
               </article>
             ))}
           </div>

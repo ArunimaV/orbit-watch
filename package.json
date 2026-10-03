@@ -8,12 +8,15 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "ingest": "tsx scripts/ingest-socrates.ts"
+    "ingest": "tsx scripts/ingest-socrates.ts",
+    "postinstall": "node scripts/copy-cesium.mjs"
   },
   "dependencies": {
+    "cesium": "^1.146.0",
     "next": "15.5.27",
     "react": "19.1.0",
     "react-dom": "19.1.0",
+    "resium": "^1.26.0",
     "satellite.js": "^7.1.0"
   },
   "devDependencies": {

@@ -2,7 +2,7 @@
 
 Space traffic triage for university CubeSat teams. This slice ingests public [CelesTrak SOCRATES](https://celestrak.org/SOCRATES/) close-approach warnings, ranks them, and shows the result on a three-panel dashboard. The demo satellite is **SwissCube** (NORAD 35932), an EPFL 1U CubeSat in a roughly 685 km sun-synchronous orbit with no thrusters.
 
-Voice, the Cesium globe, and Grok Imagine are later phases. They are not in this build.
+The center panel is a CesiumJS globe (Resium, client-only). Voice and Grok Imagine are later phases. They are not in this build.
 
 **Not for operational use.** Orbit Watch does not replace 18 SDS, a conjunction-assessment team, or a maneuver decision. It is a demo of triage and explanation.
 
@@ -21,7 +21,7 @@ Copy `.env.example` to `.env.local` when you need secrets. Phase 0–1 does not 
 | Variable | Required now | Purpose |
 |---|---|---|
 | `XAI_API_KEY` | No | Server-only key for later voice, brief, and image routes. Never ship it to the browser. |
-| `NEXT_PUBLIC_CESIUM_ION_TOKEN` | No | Optional Cesium ion imagery in a later phase. |
+| `NEXT_PUBLIC_CESIUM_ION_TOKEN` | No | Unused. The globe uses the Natural Earth II imagery shipped with Cesium, not Cesium ion. |
 | `ORBIT_WATCH_OFFLINE` | No | Set to `1` to skip CelesTrak and serve `data/fixtures/` only. |
 
 `npm run ingest` checks SOCRATES `jsonDir.php` (at most once an hour) and downloads the CSV only when `FILE_MTIME` changes. Any non-200 response stops the script. There are no retries.
@@ -41,7 +41,12 @@ Data courtesy of [CelesTrak](https://celestrak.org/) (Dr. T.S. Kelso).
 
 ### Fixture, because CelesTrak did not answer here
 
-Both a `jsonDir.php` request and one request to `table-socrates.php?CATNR=35932` timed out from this environment. Nothing was retried. `data/fixtures/socrates-sample.json` is what the API serves until `npm run ingest` writes a snapshot.
+CelesTrak was tried twice from this environment, and both attempts timed out. Nothing was retried, and a timeout stops the sequence.
+
+1. Phase 1: `jsonDir.php`, then one request to `table-socrates.php?CATNR=35932`. Both timed out.
+2. Phase 2: one GP request, `https://celestrak.org/NORAD/elements/gp.php?CATNR=35932&FORMAT=JSON`, timed out after 20 seconds (`http_code=000`). The other GP ids (19831, 35933) and a second SOCRATES table fetch were not requested.
+
+`data/fixtures/socrates-sample.json` is what the API serves until `npm run ingest` writes a snapshot. Every GP file under `data/fixtures/gp/` is still a synthetic element set. The globe draws those synthetic tracks. The pulsing label uses the SOCRATES miss distance and relative speed, which are not the same numbers as the propagated geometry.
 
 Reported from the 2026-10-03 00:19 UTC SOCRATES Plus run for SwissCube:
 
@@ -70,6 +75,12 @@ With that map, the 621 m miss (`R ≈ 0.54`) and the 13.9 km/s closing speed (`V
 Co-orbiting uses relative speed under 0.10 km/s, up from 0.05 km/s. 0.05 caught docked vehicles (ISS–Soyuz at 0.002 km/s) and missed same-launch siblings. BEESAT-1 at 0.078 km/s is dismissed as "Docked or co-orbiting, not a collision course". 0.10 km/s is still about a hundred times slower than a glancing pass in low Earth orbit.
 
 Stale data (`max(DSE) > 3` days) and dilution (dilution larger than the miss) are flags on the card. They do not change the score.
+
+## Globe
+
+`npm install` copies Cesium's Workers, Assets, Widgets, and ThirdParty into `public/cesium` (gitignored). The viewer is loaded with `next/dynamic` and `ssr: false`. Imagery is the bundled Natural Earth II tiles. Terrain is the WGS84 ellipsoid, so the app does not call Cesium ion.
+
+On load the SwissCube vs SL-8 DEB card is selected. The camera flies to the pair. Both tracks are the encounter API's samples from TCA−15 min to TCA+15 min. A pulsing marker sits on SwissCube's TCA sample and labels the SOCRATES miss and relative speed. Play/pause and the scrubber step those samples. Cards whose catalog numbers have no element set (the 990101–990204 placeholders) show an error on the globe instead of a track.
 
 ## API
 

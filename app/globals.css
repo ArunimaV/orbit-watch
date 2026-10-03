@@ -31,3 +31,18 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans), sans-serif;
 }
+
+.orbit-cesium,
+.orbit-cesium .cesium-viewer,
+.orbit-cesium .cesium-viewer-cesiumWidget,
+.orbit-cesium .cesium-widget,
+.orbit-cesium .cesium-widget canvas {
+  width: 100%;
+  height: 100%;
+}
+
+.orbit-cesium .cesium-viewer-toolbar,
+.orbit-cesium .cesium-viewer-animationContainer,
+.orbit-cesium .cesium-viewer-timelineContainer {
+  display: none;
+}
