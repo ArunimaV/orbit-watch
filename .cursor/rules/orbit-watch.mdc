@@ -28,4 +28,8 @@ All times are UTC internally. Show them in the user's local time.
 
 ## Ranking
 
-Dismiss docked/formation pairs (`rel_speed < 0.05 km/s`), low-probability far misses, events outside the horizon, and collapse recurring same-pair passes before scoring. Tiers: Act (score ≥ 70 or MAX_PROB ≥ 1e-4), Watch (40–70), Info (< 40). Stale data and dilution are confidence flags, not score inputs.
+Demo satellite is SwissCube, NORAD 35932. ISS 25544 is a secondary example only.
+
+Dismiss docked or co-orbiting pairs (`rel_speed < 0.10 km/s`; raised from 0.05 so BEESAT-1 at 0.078 km/s is caught), low-probability far misses, events outside the horizon, and collapse recurring same-pair passes before scoring.
+
+Probability term is `clamp((log10(MAX_PROB)+8)/3, 0, 1)` so 1e-8 → 0 and 1e-5 → 1. Weights are otherwise the Section 5 weights. Tiers: Act (score ≥ 70 or MAX_PROB ≥ 1e-5), Watch (40–70), Info (< 40). The original 1e-7…1e-3 map and 1e-4 Act shortcut were ISS/CARA scale and buried CubeSat SOCRATES probabilities. Stale data and dilution are confidence flags, not score inputs.
