@@ -4,7 +4,7 @@
   "fileName": "socrates-sample.json",
   "fileMtime": "2026-10-03 00:19:27 UTC",
   "ingestedAt": "2026-10-03T23:20:00.000Z",
-  "note": "SwissCube rows are the real SOCRATES Plus screen for NORAD 35932, data current as of 2026-10-03 00:19:27 UTC (table-socrates.php?CATNR=35932&ORDER=MINRANGE&MAX=25, 21 rows). Catalog numbers, names, ops status, days since epoch, TCA, range, relative speed, max probability, and dilution on those rows are from that table. GP files in data/fixtures/gp/ are real CelesTrak GP JSON fetched 2026-10-03. ISS vs BREEZE-KM R/B and ISS vs SOYUZ-MS 29 remain the secondary example from the build-plan writeup; their dilution was not published.",
+  "note": "SwissCube rows are the real SOCRATES Plus screen from 2026-10-03 00:19:27 UTC. The GP files are the real Oct 3 element sets. ISS dilution is the only field still marked synthetic.",
   "events": [
     {
       "object1": {
