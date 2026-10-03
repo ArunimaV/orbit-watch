@@ -2,7 +2,7 @@
 
 Space traffic triage for university CubeSat teams. This slice ingests public [CelesTrak SOCRATES](https://celestrak.org/SOCRATES/) close-approach warnings, ranks them, and shows the result on a three-panel dashboard. The demo satellite is **SwissCube** (NORAD 35932), an EPFL 1U CubeSat in a roughly 685 km sun-synchronous orbit with no thrusters.
 
-The center panel is a CesiumJS globe (Resium, client-only). Voice and Grok Imagine are later phases. They are not in this build.
+The center panel is a CesiumJS globe (Resium, client-only). The right panel is the Grok voice copilot: hold to talk, or use Brief me if the mic or the realtime API is unavailable. A cached Grok Imagine render of SwissCube and the SL-8 debris fragment sits under the transcript.
 
 **Not for operational use.** Orbit Watch does not replace 18 SDS, a conjunction-assessment team, or a maneuver decision. It is a demo of triage and explanation.
 
@@ -16,11 +16,11 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000). The left panel loads `/api/conjunctions?norad=35932&horizon=168`. ISS (NORAD 25544) is still available if you type that id; it is a secondary example, not the demo.
 
-Copy `.env.example` to `.env.local` when you need secrets. Phase 0–1 does not call xAI.
+Copy `.env.example` to `.env.local` and set `XAI_API_KEY` for live voice, briefs, and new images. There is no key in the repo. Without it, the app stays in mock mode: the panel says the key is missing, Brief me still writes a briefing from the ranker, and the image is the committed render.
 
 | Variable | Required now | Purpose |
 |---|---|---|
-| `XAI_API_KEY` | No | Server-only key for later voice, brief, and image routes. Never ship it to the browser. |
+| `XAI_API_KEY` | No | Server-only key for voice, `/v1/responses`, TTS, and Imagine. Never ship it to the browser. |
 | `NEXT_PUBLIC_CESIUM_ION_TOKEN` | No | Unused. The globe uses the Natural Earth II imagery shipped with Cesium, not Cesium ion. |
 | `ORBIT_WATCH_OFFLINE` | No | Set to `1` to skip CelesTrak and serve `data/fixtures/` only. |
 
@@ -86,6 +86,13 @@ On load the SwissCube vs SL-8 DEB card is selected. The camera flies to the pair
 
 - `GET /api/conjunctions?norad=35932&horizon=168` — ranked cards plus `dismissed: N` grouped by reason.
 - `GET /api/encounter/[id]` — both OMMs through `json2satrec`, positions every 10 s from TCA−15 min to TCA+15 min, ECI then ECF then geodetic, and this app's own minimum separation.
+- `POST /api/voice/token` — mints an ephemeral realtime client secret (`value`, `expires_at` only). `GET` reports whether a key is set and does not mint.
+- `POST /api/voice/tools` — `get_ranked_warnings`, `get_encounter`, `explain_dismissed`, `focus_encounter`.
+- `POST /api/brief` — grok-4.7 briefing, or the ranker text when the key or the API is missing.
+- `POST /api/tts` — Eve, English, `audio/mpeg`.
+- `GET /api/imagine/[id]` — cached JPEG, or the committed `public/renders/swisscube-sl8deb.jpg` for the SwissCube / SL-8 pass and as the fallback.
+
+`focus_encounter` dispatches `window` event `orbitwatch:focus` with `{ id }`. The warning list selects that card, which is what the globe already flies to. A later globe can subscribe to the same event.
 
 ## Credits
 
