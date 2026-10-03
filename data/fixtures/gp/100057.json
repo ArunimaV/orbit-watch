@@ -1,0 +1,20 @@
+{
+  "OBJECT_NAME": "SOYUZ-MS 29",
+  "OBJECT_ID": "2026-SYNTH",
+  "EPOCH": "2026-10-03T00:19:27.000Z",
+  "MEAN_MOTION": 15.4888,
+  "ECCENTRICITY": 0.00055,
+  "INCLINATION": 51.64,
+  "RA_OF_ASC_NODE": 120.5,
+  "ARG_OF_PERICENTER": 80.2,
+  "MEAN_ANOMALY": 280.15,
+  "EPHEMERIS_TYPE": 0,
+  "CLASSIFICATION_TYPE": "U",
+  "NORAD_CAT_ID": 100057,
+  "ELEMENT_SET_NO": 999,
+  "REV_AT_EPOCH": 1,
+  "BSTAR": 0.0001,
+  "MEAN_MOTION_DOT": 0.00002,
+  "MEAN_MOTION_DDOT": 0,
+  "COMMENT": "SYNTHETIC Orbit Watch fixture. Not a CelesTrak GP download. Copied from the ISS fixture with a small mean-anomaly offset so the pair stays co-orbiting. Catalog number 100057 needs OMM, not a TLE."
+}

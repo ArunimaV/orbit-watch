@@ -1,0 +1,20 @@
+{
+  "OBJECT_NAME": "BEESAT-1",
+  "OBJECT_ID": "2009-051C",
+  "EPOCH": "2026-10-03T00:19:27.000Z",
+  "MEAN_MOTION": 14.6254,
+  "ECCENTRICITY": 0.0011,
+  "INCLINATION": 98.29,
+  "RA_OF_ASC_NODE": 42.55,
+  "ARG_OF_PERICENTER": 110.2,
+  "MEAN_ANOMALY": 250.2,
+  "EPHEMERIS_TYPE": 0,
+  "CLASSIFICATION_TYPE": "U",
+  "NORAD_CAT_ID": 35933,
+  "ELEMENT_SET_NO": 999,
+  "REV_AT_EPOCH": 88000,
+  "BSTAR": 0.000012,
+  "MEAN_MOTION_DOT": 0.000001,
+  "MEAN_MOTION_DDOT": 0,
+  "COMMENT": "SYNTHETIC Orbit Watch fixture. Not a CelesTrak GP download. Elements sit next to the SwissCube fixture so the pair is co-orbiting, matching the slow SOCRATES relative speed."
+}

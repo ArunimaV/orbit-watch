@@ -1,0 +1,20 @@
+{
+  "OBJECT_NAME": "ISS (ZARYA)",
+  "OBJECT_ID": "1998-067A",
+  "EPOCH": "2026-10-03T00:19:27.000Z",
+  "MEAN_MOTION": 15.488804,
+  "ECCENTRICITY": 0.00055,
+  "INCLINATION": 51.64,
+  "RA_OF_ASC_NODE": 120.5,
+  "ARG_OF_PERICENTER": 80.2,
+  "MEAN_ANOMALY": 280.1,
+  "EPHEMERIS_TYPE": 0,
+  "CLASSIFICATION_TYPE": "U",
+  "NORAD_CAT_ID": 25544,
+  "ELEMENT_SET_NO": 999,
+  "REV_AT_EPOCH": 1,
+  "BSTAR": 0.0001,
+  "MEAN_MOTION_DOT": 0.00002,
+  "MEAN_MOTION_DDOT": 0,
+  "COMMENT": "SYNTHETIC Orbit Watch fixture for the secondary ISS example. Not a CelesTrak GP download. Approximate 420 km elements."
+}
