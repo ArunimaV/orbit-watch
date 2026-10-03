@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { DEMO_ENCOUNTER_NORAD, DEMO_NORAD } from "@/lib/constants";
+import { subscribeFocusEncounter } from "@/lib/focus";
 import type { DismissedGroup, RankedEvent, Tier } from "@/lib/types";
 
 interface ConjunctionsResponse {
@@ -48,9 +49,11 @@ function formatScore(score: number): string {
 export function WarningList({
   selectedId,
   onSelect,
+  onNorad,
 }: {
   selectedId: string | null;
   onSelect: (event: RankedEvent | null) => void;
+  onNorad?: (norad: number) => void;
 }) {
   const [draft, setDraft] = useState(String(DEMO_NORAD));
   const [norad, setNorad] = useState(String(DEMO_NORAD));
@@ -60,6 +63,8 @@ export function WarningList({
   const [loading, setLoading] = useState(true);
   const selectedIdRef = useRef(selectedId);
   selectedIdRef.current = selectedId;
+  const rankedRef = useRef<RankedEvent[]>([]);
+  rankedRef.current = data?.ranked ?? [];
 
   useEffect(() => {
     const controller = new AbortController();
@@ -75,6 +80,7 @@ export function WarningList({
       .then((body) => {
         setData(body);
         setError(null);
+        onNorad?.(body.norad);
         const stillSelected = body.ranked.some((item) => item.id === selectedIdRef.current);
         if (!stillSelected) {
           onSelect(body.ranked.find((item) => item.other.noradId === DEMO_ENCOUNTER_NORAD) ?? body.ranked[0] ?? null);
@@ -88,7 +94,12 @@ export function WarningList({
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [norad, horizon, onSelect]);
+  }, [norad, horizon, onSelect, onNorad]);
+
+  useEffect(() => subscribeFocusEncounter((id) => {
+    const match = rankedRef.current.find((item) => item.id === id);
+    if (match) onSelect(match);
+  }), [onSelect]);
 
   return (
     <section className="flex min-h-0 flex-col bg-panel">

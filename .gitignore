@@ -41,6 +41,10 @@ data/gp/*.json
 # Copied from node_modules/cesium by scripts/copy-cesium.mjs
 /public/cesium
 
+# Imagine files written at runtime. The committed demo render stays.
+/public/renders/*
+!/public/renders/swisscube-sl8deb.jpg
+
 # vercel
 .vercel
 

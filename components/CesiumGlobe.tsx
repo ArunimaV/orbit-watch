@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArcType,
@@ -21,6 +22,7 @@ import {
 } from "cesium";
 import { useCesium, Viewer } from "resium";
 import type { TrackSample } from "@/lib/encounter";
+import { subscribeFocusEncounter } from "@/lib/focus";
 import { nearestSampleIndex } from "@/lib/tracks";
 import type { RankedEvent } from "@/lib/types";
 
@@ -75,18 +77,21 @@ function EncounterScene({
   index,
   tcaIndex,
   label,
+  flyToken,
 }: {
   ours: TrackSample[];
   other: TrackSample[];
   index: number;
   tcaIndex: number;
   label: string;
+  flyToken: number;
 }) {
   const { viewer } = useCesium();
   const dots = useRef<{ ours: Entity | null; other: Entity | null }>({ ours: null, other: null });
 
   useEffect(() => {
     if (!viewer || viewer.isDestroyed()) return undefined;
+    void flyToken;
     const scene = viewer;
     scene.entities.removeAll();
     scene.terrainProvider = new EllipsoidTerrainProvider();
@@ -170,7 +175,7 @@ function EncounterScene({
       dots.current = { ours: null, other: null };
       if (!scene.isDestroyed()) scene.entities.removeAll();
     };
-  }, [viewer, ours, other, tcaIndex, label]);
+  }, [viewer, ours, other, tcaIndex, label, flyToken]);
 
   useEffect(() => {
     const oursSample = ours[Math.min(index, ours.length - 1)];
@@ -193,7 +198,33 @@ export default function CesiumGlobe({ event }: { event: RankedEvent | null }) {
   const [loading, setLoading] = useState(false);
   const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(true);
+  const [flyToken, setFlyToken] = useState(0);
+  const [renderUrl, setRenderUrl] = useState<string | null>(null);
   const terrainProvider = useMemo(() => new EllipsoidTerrainProvider(), []);
+
+  useEffect(() => {
+    return subscribeFocusEncounter((id) => {
+      if (event?.id === id) setFlyToken((value) => value + 1);
+    });
+  }, [event?.id]);
+
+  useEffect(() => {
+    if (!event) {
+      setRenderUrl(null);
+      return undefined;
+    }
+    const controller = new AbortController();
+    fetch(`/api/imagine/${encodeURIComponent(event.id)}`, { signal: controller.signal })
+      .then(async (response) => (await response.json()) as { url?: string })
+      .then((body) => {
+        setRenderUrl(typeof body.url === "string" ? body.url : null);
+      })
+      .catch((cause: unknown) => {
+        if (cause instanceof DOMException && cause.name === "AbortError") return;
+        setRenderUrl("/renders/swisscube-sl8deb.jpg");
+      });
+    return () => controller.abort();
+  }, [event]);
 
   useEffect(() => {
     const moduleUrl = buildModuleUrl as typeof buildModuleUrl & { setBaseUrl?: (value: string) => void };
@@ -292,6 +323,7 @@ export default function CesiumGlobe({ event }: { event: RankedEvent | null }) {
                 index={index}
                 tcaIndex={tcaIndex}
                 label={label}
+                flyToken={flyToken}
               />
             )}
           </Viewer>
@@ -307,6 +339,21 @@ export default function CesiumGlobe({ event }: { event: RankedEvent | null }) {
             </span>
           )}
         </div>
+        {renderUrl && (
+          <figure className="pointer-events-none absolute top-3 right-3 z-10 w-44 sm:w-56">
+            <Image
+              src={renderUrl}
+              alt="Artist's rendering of the selected encounter"
+              width={448}
+              height={252}
+              unoptimized
+              className="aspect-video w-full rounded border border-edge object-cover shadow-lg"
+            />
+            <figcaption className="mt-1 rounded bg-background/90 px-2 py-1 text-[10px] leading-snug text-muted">
+              Artist&apos;s rendering from real orbital data. Not a photograph.
+            </figcaption>
+          </figure>
+        )}
         {(loading || error || !event) && (
           <p className="absolute right-3 bottom-16 left-3 rounded bg-background/80 px-3 py-2 text-xs text-muted">
             {error ?? (loading ? "Propagating the encounter…" : "Select a warning to fly there.")}
