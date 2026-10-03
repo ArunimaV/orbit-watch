@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   celestrakFetch,
+  httpFallbackUrl,
   isFileMtimeNewer,
   isGpCacheFresh,
   shouldPollJsonDir,
@@ -34,6 +35,34 @@ describe("CelesTrak etiquette", () => {
     };
     await expect(
       celestrakFetch("https://celestrak.org/SOCRATES/jsonDir.php", fetchImpl as typeof fetch),
+    ).rejects.toThrow(/HTTP 403/);
+    expect(calls).toBe(1);
+  });
+
+  it("tries http://celestrak.org once when https never returns a status", async () => {
+    const urls: string[] = [];
+    const fetchImpl = async (url: string) => {
+      urls.push(url);
+      if (url.startsWith("https://")) throw new TypeError("connect timeout");
+      return new Response("ok", { status: 200 });
+    };
+    const response = await celestrakFetch("https://celestrak.org/SOCRATES/jsonDir.php", fetchImpl as typeof fetch);
+    expect(response.status).toBe(200);
+    expect(urls).toEqual([
+      "https://celestrak.org/SOCRATES/jsonDir.php",
+      "http://celestrak.org/SOCRATES/jsonDir.php",
+    ]);
+    expect(httpFallbackUrl("https://example.com/x")).toBeNull();
+  });
+
+  it("does not fall back to http after a non-200", async () => {
+    let calls = 0;
+    const fetchImpl = async () => {
+      calls += 1;
+      return new Response("no", { status: 403 });
+    };
+    await expect(
+      celestrakFetch("https://celestrak.org/NORAD/elements/gp.php?CATNR=35932&FORMAT=JSON", fetchImpl as typeof fetch),
     ).rejects.toThrow(/HTTP 403/);
     expect(calls).toBe(1);
   });

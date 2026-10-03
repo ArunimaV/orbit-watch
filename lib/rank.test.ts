@@ -111,18 +111,36 @@ describe("rankConjunctions", () => {
     expect(result.ranked[0]?.maxProb).toBeCloseTo(5.614e-6, 12);
   });
 
-  it("collapses a recurring pair and dismisses the other fixture rules", () => {
+  it("collapses the real Fengyun 1C debris repeats and dismisses the far low-probability misses", () => {
     const fixture = loadFixtureSnapshot();
     const result = rankConjunctions(eventsForNorad(fixture, 35932), 35932, NOW, 24 * 7);
     const reasons = result.dismissed.map((group) => group.reason);
     expect(reasons).toContain(DISMISS.lowProbability);
-    expect(reasons).toContain(DISMISS.alreadyHappened);
-    expect(reasons).toContain(DISMISS.outsideHorizon);
     expect(reasons).toContain(DISMISS.duplicate);
     const duplicate = result.dismissed.find((group) => group.reason === DISMISS.duplicate);
-    expect(duplicate?.examples[0]?.detail).toMatch(/the same pair, 2 passes/);
-    const flock = result.ranked.filter((event) => event.other.noradId === 990204);
-    expect(flock).toHaveLength(1);
-    expect(flock[0]?.passes).toBe(2);
+    expect(duplicate?.examples[0]?.otherNorad).toBe(29842);
+    expect(duplicate?.examples[0]?.detail).toMatch(/the same pair, 3 passes/);
+    expect(duplicate?.count).toBe(2);
+    expect(result.ranked.some((event) => event.other.noradId === 29842)).toBe(false);
+  });
+
+  it("dismisses a past TCA and a TCA past the horizon", () => {
+    const past = hydrateEvent(
+      iss(
+        { noradId: 990202, name: "SL-16 R/B", rawName: "SL-16 R/B [-]", opsStatus: "-" },
+        { tca: "2026-10-01T12:00:00.000Z", rangeKm: 1.1, relSpeedKms: 12, maxProb: 2e-5 },
+      ),
+    );
+    const later = hydrateEvent(
+      iss(
+        { noradId: 990203, name: "CZ-4B DEB", rawName: "CZ-4B DEB [-]", opsStatus: "-" },
+        { tca: "2026-10-20T00:00:00.000Z", rangeKm: 0.9, relSpeedKms: 12.4, maxProb: 2e-5 },
+      ),
+    );
+    const result = rankConjunctions([past, later], 25544, NOW, 24 * 7);
+    const reasons = result.dismissed.map((group) => group.reason);
+    expect(reasons).toContain(DISMISS.alreadyHappened);
+    expect(reasons).toContain(DISMISS.outsideHorizon);
+    expect(result.ranked).toHaveLength(0);
   });
 });

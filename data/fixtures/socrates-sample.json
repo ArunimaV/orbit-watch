@@ -3,138 +3,505 @@
   "demoNorad": 35932,
   "fileName": "socrates-sample.json",
   "fileMtime": "2026-10-03 00:19:27 UTC",
-  "ingestedAt": "2026-10-03T22:20:00.000Z",
-  "note": "Committed demo screen for SwissCube (NORAD 35932), from the SOCRATES Plus run dated 2026-10-03 00:19 UTC. CelesTrak did not answer from the build environment (connection timed out on jsonDir.php and on the per-satellite table). Fields listed in syntheticFields were not in the supplied excerpt and are not SOCRATES values. SwissCube's own ops-status bracket was not supplied; it is labeled [+] as an active-payload assumption. NORAD ids 990101–990204 are fixture placeholders, not catalog numbers. ISS (25544) rows are a secondary example only.",
+  "ingestedAt": "2026-10-03T23:20:00.000Z",
+  "note": "SwissCube rows are the real SOCRATES Plus screen for NORAD 35932, data current as of 2026-10-03 00:19:27 UTC (table-socrates.php?CATNR=35932&ORDER=MINRANGE&MAX=25, 21 rows). Catalog numbers, names, ops status, days since epoch, TCA, range, relative speed, max probability, and dilution on those rows are from that table. GP files in data/fixtures/gp/ are real CelesTrak GP JSON fetched 2026-10-03. ISS vs BREEZE-KM R/B and ISS vs SOYUZ-MS 29 remain the secondary example from the build-plan writeup; their dilution was not published.",
   "events": [
     {
-      "object1": { "noradId": 35932, "name": "SWISSCUBE", "rawName": "SWISSCUBE [+]", "opsStatus": "+" },
-      "object2": { "noradId": 19831, "name": "SL-8 DEB", "rawName": "SL-8 DEB [-]", "opsStatus": "-" },
-      "dse1": 2.5,
-      "dse2": 2.2,
+      "object1": {
+        "noradId": 35932,
+        "name": "SWISSCUBE",
+        "rawName": "SWISSCUBE [+]",
+        "opsStatus": "+"
+      },
+      "object2": {
+        "noradId": 19831,
+        "name": "SL-8 DEB",
+        "rawName": "SL-8 DEB [-]",
+        "opsStatus": "-"
+      },
+      "dse1": 2.483,
+      "dse2": 2.17,
       "tca": "2026-10-05T01:26:28.592Z",
       "rangeKm": 0.621,
       "relSpeedKms": 13.881,
       "maxProb": 0.000005614,
-      "dilutionKm": null,
-      "provenance": "partial",
-      "syntheticFields": ["dilutionKm"],
-      "note": "Top SwissCube event from the 2026-10-03 00:19 UTC SOCRATES Plus run. DSE values were supplied as approximate (~2.5 and ~2.2). Dilution was not supplied; it is null, not a guessed number."
+      "dilutionKm": 0.298,
+      "provenance": "reported",
+      "syntheticFields": []
     },
     {
-      "object1": { "noradId": 35932, "name": "SWISSCUBE", "rawName": "SWISSCUBE [+]", "opsStatus": "+" },
-      "object2": { "noradId": 35933, "name": "BEESAT-1", "rawName": "BEESAT-1 [+]", "opsStatus": "+" },
-      "dse1": 1.0,
-      "dse2": 1.1,
-      "tca": "2026-10-04T16:40:00.000Z",
+      "object1": {
+        "noradId": 35932,
+        "name": "SWISSCUBE",
+        "rawName": "SWISSCUBE [+]",
+        "opsStatus": "+"
+      },
+      "object2": {
+        "noradId": 29842,
+        "name": "FENGYUN 1C DEB",
+        "rawName": "FENGYUN 1C DEB [-]",
+        "opsStatus": "-"
+      },
+      "dse1": 7.449,
+      "dse2": 7.473,
+      "tca": "2026-10-10T00:38:31.042Z",
+      "rangeKm": 1.741,
+      "relSpeedKms": 14.737,
+      "maxProb": 5.503e-7,
+      "dilutionKm": 1.086,
+      "provenance": "reported",
+      "syntheticFields": []
+    },
+    {
+      "object1": {
+        "noradId": 35932,
+        "name": "SWISSCUBE",
+        "rawName": "SWISSCUBE [+]",
+        "opsStatus": "+"
+      },
+      "object2": {
+        "noradId": 3048,
+        "name": "SL-8 R/B",
+        "rawName": "SL-8 R/B [-]",
+        "opsStatus": "-"
+      },
+      "dse1": 2.863,
+      "dse2": 3.038,
+      "tca": "2026-10-05T10:34:30.331Z",
+      "rangeKm": 2.205,
+      "relSpeedKms": 14.907,
+      "maxProb": 0.000001571,
+      "dilutionKm": 1.484,
+      "provenance": "reported",
+      "syntheticFields": []
+    },
+    {
+      "object1": {
+        "noradId": 35932,
+        "name": "SWISSCUBE",
+        "rawName": "SWISSCUBE [+]",
+        "opsStatus": "+"
+      },
+      "object2": {
+        "noradId": 55214,
+        "name": "CZ-6A DEB",
+        "rawName": "CZ-6A DEB [-]",
+        "opsStatus": "-"
+      },
+      "dse1": 0.628,
+      "dse2": 1.108,
+      "tca": "2026-10-03T04:56:22.534Z",
+      "rangeKm": 2.818,
+      "relSpeedKms": 14.076,
+      "maxProb": 2.595e-7,
+      "dilutionKm": 1.423,
+      "provenance": "reported",
+      "syntheticFields": []
+    },
+    {
+      "object1": {
+        "noradId": 35932,
+        "name": "SWISSCUBE",
+        "rawName": "SWISSCUBE [+]",
+        "opsStatus": "+"
+      },
+      "object2": {
+        "noradId": 29842,
+        "name": "FENGYUN 1C DEB",
+        "rawName": "FENGYUN 1C DEB [-]",
+        "opsStatus": "-"
+      },
+      "dse1": 7.381,
+      "dse2": 7.405,
+      "tca": "2026-10-09T23:00:01.388Z",
+      "rangeKm": 2.82,
+      "relSpeedKms": 14.736,
+      "maxProb": 2.097e-7,
+      "dilutionKm": 1.76,
+      "provenance": "reported",
+      "syntheticFields": []
+    },
+    {
+      "object1": {
+        "noradId": 35932,
+        "name": "SWISSCUBE",
+        "rawName": "SWISSCUBE [+]",
+        "opsStatus": "+"
+      },
+      "object2": {
+        "noradId": 35759,
+        "name": "COSMOS 2251 DEB",
+        "rawName": "COSMOS 2251 DEB [-]",
+        "opsStatus": "-"
+      },
+      "dse1": 0.62,
+      "dse2": 3.647,
+      "tca": "2026-10-03T04:44:41.108Z",
+      "rangeKm": 2.933,
+      "relSpeedKms": 14.98,
+      "maxProb": 1.746e-7,
+      "dilutionKm": 2.032,
+      "provenance": "reported",
+      "syntheticFields": []
+    },
+    {
+      "object1": {
+        "noradId": 35932,
+        "name": "SWISSCUBE",
+        "rawName": "SWISSCUBE [+]",
+        "opsStatus": "+"
+      },
+      "object2": {
+        "noradId": 26454,
+        "name": "CZ-4B DEB",
+        "rawName": "CZ-4B DEB [-]",
+        "opsStatus": "-"
+      },
+      "dse1": 2.164,
+      "dse2": 2.562,
+      "tca": "2026-10-04T17:47:58.499Z",
+      "rangeKm": 3.545,
+      "relSpeedKms": 14.637,
+      "maxProb": 1.374e-7,
+      "dilutionKm": 2.136,
+      "provenance": "reported",
+      "syntheticFields": []
+    },
+    {
+      "object1": {
+        "noradId": 35932,
+        "name": "SWISSCUBE",
+        "rawName": "SWISSCUBE [+]",
+        "opsStatus": "+"
+      },
+      "object2": {
+        "noradId": 26444,
+        "name": "CZ-4B DEB",
+        "rawName": "CZ-4B DEB [-]",
+        "opsStatus": "-"
+      },
+      "dse1": 6.362,
+      "dse2": 6.435,
+      "tca": "2026-10-08T22:33:30.296Z",
+      "rangeKm": 3.546,
+      "relSpeedKms": 14.848,
+      "maxProb": 1.267e-7,
+      "dilutionKm": 2.315,
+      "provenance": "reported",
+      "syntheticFields": []
+    },
+    {
+      "object1": {
+        "noradId": 35932,
+        "name": "SWISSCUBE",
+        "rawName": "SWISSCUBE [+]",
+        "opsStatus": "+"
+      },
+      "object2": {
+        "noradId": 33678,
+        "name": "FENGYUN 1C DEB",
+        "rawName": "FENGYUN 1C DEB [-]",
+        "opsStatus": "-"
+      },
+      "dse1": 1.47,
+      "dse2": 2.004,
+      "tca": "2026-10-04T01:08:43.596Z",
+      "rangeKm": 3.59,
+      "relSpeedKms": 14.881,
+      "maxProb": 1.243e-7,
+      "dilutionKm": 2.332,
+      "provenance": "reported",
+      "syntheticFields": []
+    },
+    {
+      "object1": {
+        "noradId": 35932,
+        "name": "SWISSCUBE",
+        "rawName": "SWISSCUBE [+]",
+        "opsStatus": "+"
+      },
+      "object2": {
+        "noradId": 33832,
+        "name": "COSMOS 2251 DEB",
+        "rawName": "COSMOS 2251 DEB [-]",
+        "opsStatus": "-"
+      },
+      "dse1": 2.389,
+      "dse2": 2.43,
+      "tca": "2026-10-04T23:11:06.734Z",
+      "rangeKm": 3.661,
+      "relSpeedKms": 14.965,
+      "maxProb": 1.123e-7,
+      "dilutionKm": 2.53,
+      "provenance": "reported",
+      "syntheticFields": []
+    },
+    {
+      "object1": {
+        "noradId": 35932,
+        "name": "SWISSCUBE",
+        "rawName": "SWISSCUBE [+]",
+        "opsStatus": "+"
+      },
+      "object2": {
+        "noradId": 28898,
+        "name": "MOZHAETS 5 & RUBIN-5",
+        "rawName": "MOZHAETS 5 & RUBIN-5 [?]",
+        "opsStatus": "?"
+      },
+      "dse1": 2.106,
+      "dse2": 1.825,
+      "tca": "2026-10-04T16:24:56.993Z",
+      "rangeKm": 4.229,
+      "relSpeedKms": 13.079,
+      "maxProb": 1.405e-7,
+      "dilutionKm": 1.751,
+      "provenance": "reported",
+      "syntheticFields": []
+    },
+    {
+      "object1": {
+        "noradId": 35932,
+        "name": "SWISSCUBE",
+        "rawName": "SWISSCUBE [+]",
+        "opsStatus": "+"
+      },
+      "object2": {
+        "noradId": 49383,
+        "name": "YAOGAN-32 02A",
+        "rawName": "YAOGAN-32 02A [+]",
+        "opsStatus": "+"
+      },
+      "dse1": 5.391,
+      "dse2": 5.104,
+      "tca": "2026-10-07T23:14:36.002Z",
+      "rangeKm": 4.236,
+      "relSpeedKms": 13.751,
+      "maxProb": 1.238e-7,
+      "dilutionKm": 1.984,
+      "provenance": "reported",
+      "syntheticFields": []
+    },
+    {
+      "object1": {
+        "noradId": 35932,
+        "name": "SWISSCUBE",
+        "rawName": "SWISSCUBE [+]",
+        "opsStatus": "+"
+      },
+      "object2": {
+        "noradId": 35933,
+        "name": "BEESAT-1",
+        "rawName": "BEESAT-1 [+]",
+        "opsStatus": "+"
+      },
+      "dse1": 3.916,
+      "dse2": 4.192,
+      "tca": "2026-10-06T11:51:08.166Z",
       "rangeKm": 4.368,
       "relSpeedKms": 0.078,
-      "maxProb": 0.000008,
-      "dilutionKm": null,
-      "provenance": "partial",
-      "syntheticFields": ["tca", "maxProb", "dse1", "dse2", "dilutionKm"],
-      "note": "Same 2009 launch as SwissCube, co-orbiting. Range 4.368 km and relative speed 0.078 km/s are from the supplied excerpt. TCA, probability, DSE, and dilution were not supplied."
+      "maxProb": 2.313e-7,
+      "dilutionKm": 1.03,
+      "provenance": "reported",
+      "syntheticFields": []
     },
     {
-      "object1": { "noradId": 35932, "name": "SWISSCUBE", "rawName": "SWISSCUBE [+]", "opsStatus": "+" },
-      "object2": { "noradId": 990101, "name": "FENGYUN 1C DEB", "rawName": "FENGYUN 1C DEB [synthetic] [-]", "opsStatus": "-" },
-      "dse1": 3.5,
-      "dse2": 4.0,
-      "tca": "2026-10-10T00:38:00.000Z",
-      "rangeKm": 1.741,
-      "relSpeedKms": 8.5,
-      "maxProb": 0.0000012,
-      "dilutionKm": 2.5,
-      "provenance": "partial",
-      "syntheticFields": ["noradId", "opsStatus", "tcaSeconds", "relSpeedKms", "maxProb", "dse1", "dse2", "dilutionKm"],
-      "note": "Fengyun-1C debris at 1.741 km, TCA 2026-10-10 00:38 UTC. The catalog number, ops-status bracket, seconds, relative speed, probability, DSE, and dilution were not in the excerpt. 990101 is a placeholder id."
+      "object1": {
+        "noradId": 35932,
+        "name": "SWISSCUBE",
+        "rawName": "SWISSCUBE [+]",
+        "opsStatus": "+"
+      },
+      "object2": {
+        "noradId": 55895,
+        "name": "CZ-6A DEB",
+        "rawName": "CZ-6A DEB [-]",
+        "opsStatus": "-"
+      },
+      "dse1": 6.783,
+      "dse2": 6.925,
+      "tca": "2026-10-09T08:39:46.133Z",
+      "rangeKm": 4.522,
+      "relSpeedKms": 14.447,
+      "maxProb": 9.012e-8,
+      "dilutionKm": 2.55,
+      "provenance": "reported",
+      "syntheticFields": []
     },
     {
-      "object1": { "noradId": 35932, "name": "SWISSCUBE", "rawName": "SWISSCUBE [+]", "opsStatus": "+" },
-      "object2": { "noradId": 990102, "name": "COSMOS 2251 DEB", "rawName": "COSMOS 2251 DEB [synthetic] [-]", "opsStatus": "-" },
-      "dse1": 1.4,
-      "dse2": 2.8,
-      "tca": "2026-10-03T04:44:00.000Z",
-      "rangeKm": 2.933,
-      "relSpeedKms": 11.0,
-      "maxProb": 0.000003,
-      "dilutionKm": 1.0,
-      "provenance": "partial",
-      "syntheticFields": ["noradId", "opsStatus", "tcaSeconds", "relSpeedKms", "maxProb", "dse1", "dse2", "dilutionKm"],
-      "note": "Cosmos 2251 debris at 2.933 km, TCA 2026-10-03 04:44 UTC. The catalog number and the other numeric fields were not in the excerpt. 990102 is a placeholder id. Seconds were assumed to be :00."
+      "object1": {
+        "noradId": 35932,
+        "name": "SWISSCUBE",
+        "rawName": "SWISSCUBE [+]",
+        "opsStatus": "+"
+      },
+      "object2": {
+        "noradId": 23106,
+        "name": "PEGASUS R/B",
+        "rawName": "PEGASUS R/B [-]",
+        "opsStatus": "-"
+      },
+      "dse1": 5.862,
+      "dse2": 6.348,
+      "tca": "2026-10-08T10:33:27.951Z",
+      "rangeKm": 4.525,
+      "relSpeedKms": 5.946,
+      "maxProb": 1.484e-7,
+      "dilutionKm": 1.15,
+      "provenance": "reported",
+      "syntheticFields": []
     },
     {
-      "object1": { "noradId": 35932, "name": "SWISSCUBE", "rawName": "SWISSCUBE [+]", "opsStatus": "+" },
-      "object2": { "noradId": 990201, "name": "H-2A DEB", "rawName": "H-2A DEB [synthetic] [-]", "opsStatus": "-" },
-      "dse1": 1.2,
-      "dse2": 1.2,
-      "tca": "2026-10-06T08:00:00.000Z",
-      "rangeKm": 4.8,
-      "relSpeedKms": 10.2,
-      "maxProb": 0.0000004,
-      "dilutionKm": 0.4,
-      "provenance": "synthetic",
-      "syntheticFields": ["noradId", "name", "opsStatus", "tca", "rangeKm", "relSpeedKms", "maxProb", "dse1", "dse2", "dilutionKm"],
-      "note": "Synthetic dismissal example: MAX_PROB < 1e-6 and range > 2 km."
+      "object1": {
+        "noradId": 35932,
+        "name": "SWISSCUBE",
+        "rawName": "SWISSCUBE [+]",
+        "opsStatus": "+"
+      },
+      "object2": {
+        "noradId": 1716,
+        "name": "TITAN 3C TRANSTAGE DEB",
+        "rawName": "TITAN 3C TRANSTAGE DEB [-]",
+        "opsStatus": "-"
+      },
+      "dse1": 1.576,
+      "dse2": 1.81,
+      "tca": "2026-10-04T03:41:20.424Z",
+      "rangeKm": 4.559,
+      "relSpeedKms": 13.5,
+      "maxProb": 1.131e-7,
+      "dilutionKm": 2.019,
+      "provenance": "reported",
+      "syntheticFields": []
     },
     {
-      "object1": { "noradId": 35932, "name": "SWISSCUBE", "rawName": "SWISSCUBE [+]", "opsStatus": "+" },
-      "object2": { "noradId": 990202, "name": "SL-16 R/B", "rawName": "SL-16 R/B [synthetic] [-]", "opsStatus": "-" },
-      "dse1": 0.8,
-      "dse2": 1.5,
-      "tca": "2026-10-01T12:00:00.000Z",
-      "rangeKm": 1.1,
-      "relSpeedKms": 12.0,
-      "maxProb": 0.00002,
-      "dilutionKm": 0.3,
-      "provenance": "synthetic",
-      "syntheticFields": ["noradId", "name", "opsStatus", "tca", "rangeKm", "relSpeedKms", "maxProb", "dse1", "dse2", "dilutionKm"],
-      "note": "Synthetic dismissal example: TCA already passed."
+      "object1": {
+        "noradId": 35932,
+        "name": "SWISSCUBE",
+        "rawName": "SWISSCUBE [+]",
+        "opsStatus": "+"
+      },
+      "object2": {
+        "noradId": 54577,
+        "name": "CZ-6A DEB",
+        "rawName": "CZ-6A DEB [-]",
+        "opsStatus": "-"
+      },
+      "dse1": 6.102,
+      "dse2": 6.344,
+      "tca": "2026-10-08T16:18:47.789Z",
+      "rangeKm": 4.584,
+      "relSpeedKms": 13.469,
+      "maxProb": 1.118e-7,
+      "dilutionKm": 2.03,
+      "provenance": "reported",
+      "syntheticFields": []
     },
     {
-      "object1": { "noradId": 35932, "name": "SWISSCUBE", "rawName": "SWISSCUBE [+]", "opsStatus": "+" },
-      "object2": { "noradId": 990203, "name": "CZ-4B DEB", "rawName": "CZ-4B DEB [synthetic] [-]", "opsStatus": "-" },
-      "dse1": 2.0,
-      "dse2": 2.0,
-      "tca": "2026-10-20T00:00:00.000Z",
-      "rangeKm": 0.9,
-      "relSpeedKms": 12.4,
-      "maxProb": 0.00002,
-      "dilutionKm": 0.2,
-      "provenance": "synthetic",
-      "syntheticFields": ["noradId", "name", "opsStatus", "tca", "rangeKm", "relSpeedKms", "maxProb", "dse1", "dse2", "dilutionKm"],
-      "note": "Synthetic dismissal example: TCA outside a 7-day horizon."
+      "object1": {
+        "noradId": 35932,
+        "name": "SWISSCUBE",
+        "rawName": "SWISSCUBE [+]",
+        "opsStatus": "+"
+      },
+      "object2": {
+        "noradId": 26294,
+        "name": "CZ-4B DEB",
+        "rawName": "CZ-4B DEB [-]",
+        "opsStatus": "-"
+      },
+      "dse1": 4.113,
+      "dse2": 4.216,
+      "tca": "2026-10-06T16:34:58.399Z",
+      "rangeKm": 4.782,
+      "relSpeedKms": 14.695,
+      "maxProb": 7.495e-8,
+      "dilutionKm": 2.903,
+      "provenance": "reported",
+      "syntheticFields": []
     },
     {
-      "object1": { "noradId": 35932, "name": "SWISSCUBE", "rawName": "SWISSCUBE [+]", "opsStatus": "+" },
-      "object2": { "noradId": 990204, "name": "FLOCK 4P-1", "rawName": "FLOCK 4P-1 [synthetic] [+]", "opsStatus": "+" },
-      "dse1": 0.6,
-      "dse2": 0.6,
-      "tca": "2026-10-06T03:00:00.000Z",
-      "rangeKm": 3.2,
-      "relSpeedKms": 5.0,
-      "maxProb": 0.000002,
-      "dilutionKm": 0.5,
-      "provenance": "synthetic",
-      "syntheticFields": ["noradId", "name", "opsStatus", "tca", "rangeKm", "relSpeedKms", "maxProb", "dse1", "dse2", "dilutionKm"],
-      "note": "Synthetic recurring pair, first pass. Collapses with the next row."
+      "object1": {
+        "noradId": 35932,
+        "name": "SWISSCUBE",
+        "rawName": "SWISSCUBE [+]",
+        "opsStatus": "+"
+      },
+      "object2": {
+        "noradId": 538,
+        "name": "THOR ABLESTAR DEB",
+        "rawName": "THOR ABLESTAR DEB [-]",
+        "opsStatus": "-"
+      },
+      "dse1": 6.948,
+      "dse2": 7.158,
+      "tca": "2026-10-09T12:36:47.636Z",
+      "rangeKm": 4.827,
+      "relSpeedKms": 14.892,
+      "maxProb": 6.741e-8,
+      "dilutionKm": 3.198,
+      "provenance": "reported",
+      "syntheticFields": []
     },
     {
-      "object1": { "noradId": 35932, "name": "SWISSCUBE", "rawName": "SWISSCUBE [+]", "opsStatus": "+" },
-      "object2": { "noradId": 990204, "name": "FLOCK 4P-1", "rawName": "FLOCK 4P-1 [synthetic] [+]", "opsStatus": "+" },
-      "dse1": 0.6,
-      "dse2": 0.6,
-      "tca": "2026-10-06T04:35:00.000Z",
-      "rangeKm": 3.4,
-      "relSpeedKms": 5.1,
-      "maxProb": 0.0000018,
-      "dilutionKm": 0.5,
-      "provenance": "synthetic",
-      "syntheticFields": ["noradId", "name", "opsStatus", "tca", "rangeKm", "relSpeedKms", "maxProb", "dse1", "dse2", "dilutionKm"],
-      "note": "Synthetic recurring pair, second pass about 95 minutes later."
+      "object1": {
+        "noradId": 35932,
+        "name": "SWISSCUBE",
+        "rawName": "SWISSCUBE [+]",
+        "opsStatus": "+"
+      },
+      "object2": {
+        "noradId": 270333,
+        "name": "UNKNOWN",
+        "rawName": "UNKNOWN [-]",
+        "opsStatus": "-"
+      },
+      "dse1": 6.867,
+      "dse2": 8.883,
+      "tca": "2026-10-09T10:40:00.774Z",
+      "rangeKm": 4.857,
+      "relSpeedKms": 14.805,
+      "maxProb": 7.088e-8,
+      "dilutionKm": 3.022,
+      "provenance": "reported",
+      "syntheticFields": []
     },
     {
-      "object1": { "noradId": 25544, "name": "ISS (ZARYA)", "rawName": "ISS (ZARYA) [+]", "opsStatus": "+" },
-      "object2": { "noradId": 42970, "name": "BREEZE-KM R/B", "rawName": "BREEZE-KM R/B [-]", "opsStatus": "-" },
+      "object1": {
+        "noradId": 35932,
+        "name": "SWISSCUBE",
+        "rawName": "SWISSCUBE [+]",
+        "opsStatus": "+"
+      },
+      "object2": {
+        "noradId": 29842,
+        "name": "FENGYUN 1C DEB",
+        "rawName": "FENGYUN 1C DEB [-]",
+        "opsStatus": "-"
+      },
+      "dse1": 7.312,
+      "dse2": 7.336,
+      "tca": "2026-10-09T21:21:31.734Z",
+      "rangeKm": 4.98,
+      "relSpeedKms": 14.736,
+      "maxProb": 6.721e-8,
+      "dilutionKm": 3.109,
+      "provenance": "reported",
+      "syntheticFields": []
+    },
+    {
+      "object1": {
+        "noradId": 25544,
+        "name": "ISS (ZARYA)",
+        "rawName": "ISS (ZARYA) [+]",
+        "opsStatus": "+"
+      },
+      "object2": {
+        "noradId": 42970,
+        "name": "BREEZE-KM R/B",
+        "rawName": "BREEZE-KM R/B [-]",
+        "opsStatus": "-"
+      },
       "dse1": 5.98,
       "dse2": 5.98,
       "tca": "2026-10-08T19:59:21.677Z",
@@ -143,12 +510,24 @@
       "maxProb": 0.0005243,
       "dilutionKm": null,
       "provenance": "secondary-example",
-      "syntheticFields": ["dilutionKm"],
-      "note": "Secondary example only, from the Oct 3, 2026 SOCRATES writeup: ISS vs BREEZE-KM R/B. The published table gave one DSE figure (5.98); it is stored on both objects. Dilution was not published."
+      "syntheticFields": [
+        "dilutionKm"
+      ],
+      "note": "Secondary example only, from the Oct 3, 2026 SOCRATES writeup: ISS vs BREEZE-KM R/B. The published table gave one DSE figure (5.98); it is stored on both objects. Dilution was not published, so dilutionKm stays null."
     },
     {
-      "object1": { "noradId": 25544, "name": "ISS (ZARYA)", "rawName": "ISS (ZARYA) [+]", "opsStatus": "+" },
-      "object2": { "noradId": 100057, "name": "SOYUZ-MS 29", "rawName": "SOYUZ-MS 29 [+]", "opsStatus": "+" },
+      "object1": {
+        "noradId": 25544,
+        "name": "ISS (ZARYA)",
+        "rawName": "ISS (ZARYA) [+]",
+        "opsStatus": "+"
+      },
+      "object2": {
+        "noradId": 100057,
+        "name": "SOYUZ-MS 29",
+        "rawName": "SOYUZ-MS 29 [+]",
+        "opsStatus": "+"
+      },
       "dse1": 0.23,
       "dse2": 0.23,
       "tca": "2026-10-03T02:00:11.000Z",
@@ -157,8 +536,10 @@
       "maxProb": 0.00006048,
       "dilutionKm": null,
       "provenance": "secondary-example",
-      "syntheticFields": ["dilutionKm"],
-      "note": "Secondary example only: ISS vs docked SOYUZ-MS 29. Relative speed 0.002 km/s is the docked false alarm. The published table gave one DSE figure (0.23)."
+      "syntheticFields": [
+        "dilutionKm"
+      ],
+      "note": "Secondary example only: ISS vs docked SOYUZ-MS 29. Relative speed 0.002 km/s is the docked false alarm. The published table gave one DSE figure (0.23). Dilution was not published, so dilutionKm stays null."
     }
   ]
 }

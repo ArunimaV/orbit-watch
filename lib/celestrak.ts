@@ -53,13 +53,20 @@ export function isGpCacheFresh(fetchedAtIso: string, now: Date): boolean {
 }
 
 /**
- * One request. Redirects are not followed: a 301/302/303/307/308 is a non-200
- * and stops the caller. There is no retry loop.
+ * HTTPS to celestrak.org times out on some networks while plain HTTP answers.
+ * Only a transport failure (timeout, abort, network) may try `http://` once.
+ * A non-200, including a redirect, never falls back and is never retried.
  */
-export async function celestrakFetch(
+export function httpFallbackUrl(url: string): string | null {
+  const prefix = "https://celestrak.org/";
+  if (!url.startsWith(prefix)) return null;
+  return `http://celestrak.org/${url.slice(prefix.length)}`;
+}
+
+async function celestrakFetchOnce(
   url: string,
-  fetchImpl: typeof fetch = fetch,
-  timeoutMs = 15_000,
+  fetchImpl: typeof fetch,
+  timeoutMs: number,
 ): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -78,5 +85,25 @@ export async function celestrakFetch(
     return response;
   } finally {
     clearTimeout(timer);
+  }
+}
+
+/**
+ * One request. Redirects are not followed: a 301/302/303/307/308 is a non-200
+ * and stops the caller. There is no retry of the same URL. If HTTPS to
+ * celestrak.org fails before a status code, the same path is requested once
+ * over HTTP.
+ */
+export async function celestrakFetch(
+  url: string,
+  fetchImpl: typeof fetch = fetch,
+  timeoutMs = 15_000,
+): Promise<Response> {
+  try {
+    return await celestrakFetchOnce(url, fetchImpl, timeoutMs);
+  } catch (error) {
+    const fallback = error instanceof CelestrakStatusError ? null : httpFallbackUrl(url);
+    if (!fallback) throw error;
+    return celestrakFetchOnce(fallback, fetchImpl, timeoutMs);
   }
 }

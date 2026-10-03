@@ -2,7 +2,7 @@
 
 Space traffic triage for university CubeSat teams. This slice ingests public [CelesTrak SOCRATES](https://celestrak.org/SOCRATES/) close-approach warnings, ranks them, and shows the result on a three-panel dashboard. The demo satellite is **SwissCube** (NORAD 35932), an EPFL 1U CubeSat in a roughly 685 km sun-synchronous orbit with no thrusters.
 
-The center panel is a CesiumJS globe (Resium, client-only). Voice and Grok Imagine are later phases. They are not in this build.
+The center panel is a CesiumJS globe (Resium, client-only). Voice and Grok Imagine land with the voice copilot branch.
 
 **Not for operational use.** Orbit Watch does not replace 18 SDS, a conjunction-assessment team, or a maneuver decision. It is a demo of triage and explanation.
 
@@ -39,27 +39,22 @@ Orbit Watch follows the [CelesTrak usage policy](https://celestrak.org/usage-pol
 
 Data courtesy of [CelesTrak](https://celestrak.org/) (Dr. T.S. Kelso).
 
-### Fixture, because CelesTrak did not answer here
+HTTPS requests to `celestrak.org` time out from some networks, including this one. A transport failure (timeout, abort, or connection error) is tried once more as `http://celestrak.org` with the same path. A non-200, including a redirect, still stops immediately. The hourly `jsonDir.php` cap and the `FILE_MTIME` check are unchanged. There is no retry of the same URL.
 
-CelesTrak was tried twice from this environment, and both attempts timed out. Nothing was retried, and a timeout stops the sequence.
+### What is real
 
-1. Phase 1: `jsonDir.php`, then one request to `table-socrates.php?CATNR=35932`. Both timed out.
-2. Phase 2: one GP request, `https://celestrak.org/NORAD/elements/gp.php?CATNR=35932&FORMAT=JSON`, timed out after 20 seconds (`http_code=000`). The other GP ids (19831, 35933) and a second SOCRATES table fetch were not requested.
+`data/fixtures/socrates-sample.json` is what the API serves until `npm run ingest` writes a snapshot. The SwissCube rows in that file are the real SOCRATES Plus screen for NORAD 35932, data current as of 2026-10-03 00:19:27 UTC (`table-socrates.php?CATNR=35932&ORDER=MINRANGE&MAX=25`, 21 rows). On those rows, these fields are from the table and are not synthetic: catalog numbers, names, ops status, days since epoch, TCA, range, relative speed, max probability, and dilution.
 
-`data/fixtures/socrates-sample.json` is what the API serves until `npm run ingest` writes a snapshot. Every GP file under `data/fixtures/gp/` is still a synthetic element set. The globe draws those synthetic tracks. The pulsing label uses the SOCRATES miss distance and relative speed, which are not the same numbers as the propagated geometry.
-
-Reported from the 2026-10-03 00:19 UTC SOCRATES Plus run for SwissCube:
-
-| Other object | What was supplied |
+| Other object | From the table |
 |---|---|
-| SL-8 DEB (19831) `[-]` | TCA 2026-10-05 01:26:28.592 UTC, range 0.621 km, relative speed 13.881 km/s, max probability 5.614e-6, DSE about 2.5 and 2.2 |
-| BEESAT-1 (35933) `[+]` | Range 4.368 km, relative speed 0.078 km/s (same 2009 launch, co-orbiting) |
-| Fengyun-1C debris | Range 1.741 km, TCA 2026-10-10 00:38 UTC |
-| Cosmos 2251 debris | Range 2.933 km, TCA 2026-10-03 04:44 UTC |
+| SL-8 DEB (19831) `[-]` | TCA 2026-10-05 01:26:28.592 UTC, 0.621 km, 13.881 km/s, max probability 5.614e-6, dilution 0.298 km, DSE 2.483 and 2.170 |
+| BEESAT-1 (35933) `[+]` | TCA 2026-10-06 11:51:08.166 UTC, 4.368 km, 0.078 km/s, max probability 2.313e-7, dilution 1.030 km |
+| FENGYUN 1C DEB (29842) `[-]` | 1.741 km, TCA 2026-10-10 00:38:31.042 UTC, plus two later passes of the same object |
+| COSMOS 2251 DEB (35759) `[-]` | 2.933 km, TCA 2026-10-03 04:44:41.108 UTC |
 
-Anything else on those rows — dilution, BEESAT's TCA and probability, the debris catalog numbers, and the debris speeds and probabilities — is listed in `syntheticFields` and was not taken from SOCRATES. Placeholder NORAD ids 990101–990204 are not real catalog numbers. Extra rows (low probability, already happened, outside the horizon, a repeated pair) are synthetic on purpose so each dismissal rule has an example.
+GP files in `data/fixtures/gp/` are real CelesTrak GP JSON fetched 2026-10-03 (about 19:20 ET) for 35932, 19831, 35933, 25544, 100057, 42970, 29842, 3048, 55214, 35759, and 28898. Propagating SwissCube vs SL-8 DEB from those elements gives a closest approach of **0.691 km** at the SOCRATES TCA. The screen reports 0.621 km. The 70 m gap is the epoch difference (the elements are from later on Oct 3, not the screening epoch).
 
-ISS vs BREEZE-KM R/B and ISS vs SOYUZ-MS 29 from the build plan are in the same file as a secondary example. GP files in `data/fixtures/gp/` are synthetic element sets so `satellite.js` can propagate offline. A computed miss distance from those elements will not match SOCRATES.
+ISS vs BREEZE-KM R/B and ISS vs SOYUZ-MS 29 stay in the fixture as the secondary example from the build-plan writeup. Their GP files are the real element sets. Dilution was not in that writeup, so `dilutionKm` is null and is the only field still listed in `syntheticFields`. Some later SwissCube secondaries in the table have no committed GP file, so the globe says elements are unavailable for that pair.
 
 ## How the ranker is calibrated
 
@@ -80,7 +75,7 @@ Stale data (`max(DSE) > 3` days) and dilution (dilution larger than the miss) ar
 
 `npm install` copies Cesium's Workers, Assets, Widgets, and ThirdParty into `public/cesium` (gitignored). The viewer is loaded with `next/dynamic` and `ssr: false`. Imagery is the bundled Natural Earth II tiles. Terrain is the WGS84 ellipsoid, so the app does not call Cesium ion.
 
-On load the SwissCube vs SL-8 DEB card is selected. The camera flies to the pair. Both tracks are the encounter API's samples from TCA−15 min to TCA+15 min. A pulsing marker sits on SwissCube's TCA sample and labels the SOCRATES miss and relative speed. Play/pause and the scrubber step those samples. Cards whose catalog numbers have no element set (the 990101–990204 placeholders) show an error on the globe instead of a track.
+On load the SwissCube vs SL-8 DEB card is selected. The camera flies to the pair. Both tracks are the encounter API's samples from TCA−15 min to TCA+15 min. A pulsing marker sits on SwissCube's TCA sample and labels the SOCRATES miss and relative speed. Play/pause and the scrubber step those samples. A card whose other object has no committed GP file shows an error on the globe instead of a track.
 
 ## API
 

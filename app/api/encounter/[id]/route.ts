@@ -5,6 +5,22 @@ import { findEventById, loadConjunctionSource } from "@/lib/socrates";
 
 export const dynamic = "force-dynamic";
 
+function encounterNote(
+  oursOmm: { COMMENT?: string } | null,
+  otherOmm: { COMMENT?: string } | null,
+  oursSource: string,
+  otherSource: string,
+): string {
+  const synthetic = [oursOmm, otherOmm].some((omm) => String(omm?.COMMENT ?? "").toUpperCase().includes("SYNTHETIC"));
+  if (synthetic) {
+    return "One or both element sets are synthetic fixtures, so the computed miss distance will not match SOCRATES.";
+  }
+  if (oursSource === "fixture" || otherSource === "fixture") {
+    return "Computed from the committed CelesTrak GP elements. A few kilometres of difference from the SOCRATES miss is normal; the element epochs are not the screening epoch.";
+  }
+  return "Computed with satellite.js json2satrec from OMM JSON.";
+}
+
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   const { id } = await context.params;
   const decoded = decodeURIComponent(id);
@@ -56,10 +72,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       },
       computedMinRangeKm: propagation.computedMinRangeKm,
       computedMinRangeTime: propagation.computedMinRangeTime,
-      note:
-        ours.source === "fixture" || other.source === "fixture"
-          ? "One or both element sets are synthetic fixtures, so the computed miss distance will not match SOCRATES."
-          : "Computed with satellite.js json2satrec from OMM JSON.",
+      note: encounterNote(ours.omm, other.omm, ours.source, other.source),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to propagate the encounter";

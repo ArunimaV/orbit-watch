@@ -32,7 +32,9 @@ describe("getOmm", () => {
     expect(calls).toBe(0);
     expect(result.source).toBe("fixture");
     expect(result.omm?.NORAD_CAT_ID).toBe(35932);
-    expect(String(result.omm?.COMMENT)).toMatch(/SYNTHETIC/);
+    expect(result.omm?.OBJECT_NAME).toBe("SWISSCUBE");
+    expect(result.omm?.EPOCH).toBe("2026-10-03T04:38:12.718464");
+    expect(String(result.omm?.COMMENT ?? "")).not.toMatch(/SYNTHETIC/);
   });
 
   it("stops on a non-200, keeps the fixture, and does not retry inside the 2-hour window", async () => {

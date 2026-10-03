@@ -146,10 +146,9 @@ export function WarningList({
         {error && <p className="text-sm text-act">{error}</p>}
         {data && !loading && !error && (
           <div className="flex flex-col gap-3">
-            {data.source === "fixture" && (
+            {data.note && (
               <p className="rounded border border-edge bg-background px-3 py-2 text-xs leading-relaxed text-muted">
-                Demo data is the committed fixture. CelesTrak did not respond from this environment.
-                Fields marked below were not in the supplied excerpt.
+                {data.note}
               </p>
             )}
             <div className="rounded border border-edge px-3 py-2">
