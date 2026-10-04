@@ -44,11 +44,18 @@ describe("shareAlertText", () => {
 });
 
 describe("deliverShare", () => {
-  it("uses the Web Share API when the browser has it", async () => {
+  it("uses the Web Share API on a phone and copies on a desktop", async () => {
     const share = vi.fn(async () => undefined);
     const writeText = vi.fn(async () => undefined);
-    await expect(deliverShare("hello", { share, clipboard: { writeText } })).resolves.toBe("shared");
+    await expect(
+      deliverShare("hello", { share, clipboard: { writeText }, userAgent: "Mozilla/5.0 (iPhone)" }),
+    ).resolves.toBe("shared");
     expect(writeText).not.toHaveBeenCalled();
+
+    await expect(
+      deliverShare("hello", { share, clipboard: { writeText }, userAgent: "Mozilla/5.0 (X11; Linux x86_64)" }),
+    ).resolves.toBe("copied");
+    expect(writeText).toHaveBeenCalledWith("hello");
   });
 
   it("copies when sharing is missing, and stays quiet if the share sheet is cancelled", async () => {
