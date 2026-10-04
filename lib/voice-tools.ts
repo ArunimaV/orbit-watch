@@ -1,7 +1,8 @@
-import { DEFAULT_HORIZON_HOURS, DEMO_ENCOUNTER_NORAD, KNOWN_SATELLITES } from "./constants";
+import { DEFAULT_HORIZON_HOURS, DEMO_ENCOUNTER_NORAD, DEMO_NORAD, KNOWN_SATELLITES } from "./constants";
 import { readDemoNow } from "./demo-clock";
 import { propagateEncounter, type TrackSample } from "./encounter";
 import { getOmm } from "./gp";
+import { findLookupEvent, readLookupCache } from "./lookup";
 import { findEventById, eventsForNorad, loadConjunctionSource } from "./socrates";
 import { rankConjunctions } from "./rank";
 import { formatApproachTime, formatLocalTime, safeTimeZone } from "./time-format";
@@ -27,7 +28,7 @@ export interface VoiceContext {
   ranked: RankedEvent[];
   dismissed: DismissedGroup[];
   dismissedCount: number;
-  source: "snapshot" | "fixture";
+  source: "snapshot" | "fixture" | "lookup";
   now: Date;
 }
 
@@ -37,8 +38,10 @@ export function loadVoiceContext(norad: number, options: VoiceToolOptions = {}):
   }
   const horizonHours = options.horizonHours ?? DEFAULT_HORIZON_HOURS;
   const loaded = loadConjunctionSource(options.root);
-  const events = eventsForNorad(loaded.snapshot, norad);
-  const fixture = loaded.source === "fixture";
+  const lookedUp = norad === DEMO_NORAD ? null : readLookupCache(norad, options.root);
+  const lookupEvents = lookedUp && lookedUp.events.length > 0 ? lookedUp.events : null;
+  const events = lookupEvents ?? eventsForNorad(loaded.snapshot, norad);
+  const fixture = lookupEvents ? false : loaded.source === "fixture";
   const now = options.now ?? (fixture ? readDemoNow() : (options.clientNow ?? new Date()));
   const result = rankConjunctions(events, norad, now, horizonHours, {
     preservePastNorads: fixture ? [DEMO_ENCOUNTER_NORAD] : [],
@@ -54,7 +57,7 @@ export function loadVoiceContext(norad: number, options: VoiceToolOptions = {}):
     ranked: result.ranked,
     dismissed: result.dismissed,
     dismissedCount,
-    source: loaded.source,
+    source: lookupEvents ? "lookup" : loaded.source,
     now,
   };
 }
@@ -183,7 +186,7 @@ function altitudeAt(samples: TrackSample[], tca: string): number | null {
 async function encounterPayload(id: string, timeZone: string, options: VoiceToolOptions) {
   const root = options.root;
   const loaded = loadConjunctionSource(root);
-  const found = findEventById(loaded.snapshot, id);
+  const found = findEventById(loaded.snapshot, id) ?? findLookupEvent(id, root);
   if (!found) return { error: "Unknown encounter", id };
 
   const context = loadVoiceContext(found.oursNorad, options);

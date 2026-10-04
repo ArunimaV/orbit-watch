@@ -1,7 +1,7 @@
 import fs from "fs";
 import { describe, expect, it } from "vitest";
 import { DEMO_ENCOUNTER_ID } from "./imagine";
-import { VOICE_PROMPT_TEMPLATE } from "./voice-prompt";
+import { VOICE_PROMPT_TEMPLATE, voiceInstructions } from "./voice-prompt";
 import { runVoiceTool } from "./voice-tools";
 
 const OPTIONS = { now: new Date("2026-10-03T12:00:00.000Z"), offline: true, horizonHours: 168 };
@@ -75,5 +75,18 @@ describe("voice prompt", () => {
     expect(file).toMatch(/local time/i);
     expect(file).toMatch(/dismissed/i);
     expect(file).toMatch(/false alarms/i);
+  });
+
+  it("names the satellite on screen instead of always briefing SwissCube", () => {
+    const swisscube = voiceInstructions("UTC", new Date("2026-10-04T16:00:00.000Z"));
+    expect(swisscube).toMatch(/SwissCube, NORAD 35932/);
+
+    const beesat = voiceInstructions("UTC", new Date("2026-10-04T16:00:00.000Z"), {
+      name: "BEESAT-1",
+      norad: 35933,
+    });
+    expect(beesat).toMatch(/BEESAT-1, NORAD 35933/);
+    expect(beesat).not.toMatch(/SwissCube/);
+    expect(beesat).toMatch(/pass NORAD 35933/);
   });
 });

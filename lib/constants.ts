@@ -14,4 +14,23 @@ export const KNOWN_SATELLITES: Record<number, { name: string; detail: string }> 
     name: "ISS (Zarya)",
     detail: "Secondary example from the Oct 3 SOCRATES writeup",
   },
+  43017: {
+    name: "AO-91",
+    detail: "AMSAT Fox-1B · 1U",
+  },
+  69794: {
+    name: "HUCSat",
+    detail: "Harvard 2U",
+  },
+  39161: {
+    name: "ESTCube-1",
+    detail: "University of Tartu 1U",
+  },
 };
+
+/** Short list for the header. SwissCube stays the default and is not in here. */
+export const TRACKABLE_CUBESATS = [
+  { norad: 43017, name: "AO-91", detail: "AMSAT Fox-1B · 1U" },
+  { norad: 69794, name: "HUCSat", detail: "Harvard 2U" },
+  { norad: 39161, name: "ESTCube-1", detail: "University of Tartu 1U" },
+] as const;

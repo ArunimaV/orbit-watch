@@ -39,6 +39,7 @@ yarn-error.log*
 # Live CelesTrak caches. The committed demo data lives in data/fixtures/.
 data/socrates/*.json
 data/gp/*.json
+data/lookup/*.json
 
 # Copied from node_modules/cesium by scripts/copy-cesium.mjs
 /public/cesium

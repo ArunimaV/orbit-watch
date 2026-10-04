@@ -18,6 +18,8 @@ export class PcmPlayer {
   enqueue(pcm: Int16Array): void {
     if (pcm.length === 0) return;
     const ctx = this.context();
+    // Voice off closes the context. The next reply has to resume the new one.
+    if (ctx.state === "suspended") void ctx.resume();
     const floats = pcm16ToFloat32(pcm);
     const buffer = ctx.createBuffer(1, floats.length, 24000);
     const channel = buffer.getChannelData(0);

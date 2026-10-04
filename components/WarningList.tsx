@@ -3,11 +3,15 @@
 import { useEffect, useRef, useState } from "react";
 import { Countdown } from "@/components/Countdown";
 import { EncounterRoom, MissionRoomFeed, MissionRoomPresence } from "@/components/MissionRoom";
+import { ShareAlertButton } from "@/components/ShareAlertButton";
 import { TcaTime } from "@/components/TcaTime";
 import { VerifyLink } from "@/components/VerifyLink";
-import { DEMO_ENCOUNTER_NORAD, DEMO_NORAD } from "@/lib/constants";
+import { VoiceToggle } from "@/components/VoicePreference";
+import { DEMO_ENCOUNTER_NORAD, DEMO_NORAD, TRACKABLE_CUBESATS } from "@/lib/constants";
 import { formatApproachTime } from "@/lib/time-format";
+import { shareAlertText } from "@/lib/share-alert";
 import { subscribeFocusEncounter } from "@/lib/focus";
+import type { GlobeBoard } from "@/lib/orbit-board";
 import type { DismissedExample, DismissedGroup, RankedEvent, Tier } from "@/lib/types";
 
 interface ConjunctionsResponse {
@@ -16,7 +20,9 @@ interface ConjunctionsResponse {
   satelliteDetail: string | null;
   horizonHours: number;
   now: string;
-  source: "snapshot" | "fixture";
+  source: "snapshot" | "fixture" | "lookup";
+  ok?: boolean;
+  message?: string;
   note: string | null;
   totalEvents: number;
   ranked: RankedEvent[];
@@ -109,20 +115,29 @@ export function WarningList({
   onEvaluated,
   startedAt,
   onThreat,
+  onBoard,
 }: {
   selectedId: string | null;
   onSelect: (event: RankedEvent | null) => void;
   onNorad?: (norad: number) => void;
   onEvaluated?: (nowIso: string) => void;
   startedAt: number | null;
-  onThreat?: (threat: { count: number; satelliteName: string; when: string | null }) => void;
+  onThreat?: (threat: {
+    count: number;
+    satelliteName: string;
+    when: string | null;
+    lead: RankedEvent | null;
+  }) => void;
+  onBoard?: (board: GlobeBoard) => void;
 }) {
   const [draft, setDraft] = useState(String(DEMO_NORAD));
   const [norad, setNorad] = useState(String(DEMO_NORAD));
   const [horizon, setHorizon] = useState("168");
   const [data, setData] = useState<ConjunctionsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [lookupNote, setLookupNote] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const appliedRef = useRef<{ norad: string; horizon: string } | null>(null);
   const selectedIdRef = useRef(selectedId);
   selectedIdRef.current = selectedId;
   const rankedRef = useRef<RankedEvent[]>([]);
@@ -131,8 +146,43 @@ export function WarningList({
   onEvaluatedRef.current = onEvaluated;
   const onThreatRef = useRef(onThreat);
   onThreatRef.current = onThreat;
+  const onBoardRef = useRef(onBoard);
+  onBoardRef.current = onBoard;
+
+  const applyRef = useRef<(body: ConjunctionsResponse) => void>(() => {});
+  applyRef.current = (body) => {
+    setData(body);
+    setError(null);
+    setLookupNote(null);
+    appliedRef.current = { norad: String(body.norad), horizon: String(body.horizonHours) };
+    if (body.now) onEvaluatedRef.current?.(body.now);
+    const acts = body.ranked.filter((item) => item.tier === "Act");
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    const when = acts[0] && body.now ? formatApproachTime(acts[0].tca, zone, new Date(body.now)).relative : null;
+    onThreatRef.current?.({
+      count: acts.length,
+      satelliteName: body.satelliteName,
+      when,
+      lead: acts[0] ?? null,
+    });
+    onBoardRef.current?.({
+      satelliteName: body.satelliteName,
+      ranked: body.ranked,
+      dismissedIds: body.dismissed.flatMap((group) => group.examples.map((example) => example.id)),
+    });
+    onNorad?.(body.norad);
+    const stillSelected = body.ranked.some((item) => item.id === selectedIdRef.current);
+    if (!stillSelected) {
+      const prefer =
+        body.norad === DEMO_NORAD
+          ? body.ranked.find((item) => item.other.noradId === DEMO_ENCOUNTER_NORAD)
+          : undefined;
+      onSelect(prefer ?? body.ranked[0] ?? null);
+    }
+  };
 
   useEffect(() => {
+    if (norad !== String(DEMO_NORAD)) return undefined;
     const controller = new AbortController();
     setLoading(true);
     const clientNow = new Date().toISOString();
@@ -148,22 +198,7 @@ export function WarningList({
         return body;
       })
       .then((body) => {
-        setData(body);
-        setError(null);
-        if (body.now) onEvaluatedRef.current?.(body.now);
-        const acts = body.ranked.filter((item) => item.tier === "Act");
-        const zone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-        const when = acts[0] && body.now ? formatApproachTime(acts[0].tca, zone, new Date(body.now)).relative : null;
-        onThreatRef.current?.({
-          count: acts.length,
-          satelliteName: body.satelliteName,
-          when,
-        });
-        onNorad?.(body.norad);
-        const stillSelected = body.ranked.some((item) => item.id === selectedIdRef.current);
-        if (!stillSelected) {
-          onSelect(body.ranked.find((item) => item.other.noradId === DEMO_ENCOUNTER_NORAD) ?? body.ranked[0] ?? null);
-        }
+        applyRef.current(body);
       })
       .catch((cause: unknown) => {
         if (cause instanceof DOMException && cause.name === "AbortError") return;
@@ -175,6 +210,68 @@ export function WarningList({
     return () => controller.abort();
   }, [norad, horizon, onSelect, onNorad]);
 
+  useEffect(() => {
+    if (norad === String(DEMO_NORAD)) return undefined;
+    if (appliedRef.current?.norad === norad && appliedRef.current.horizon === horizon) return undefined;
+    const controller = new AbortController();
+    const clientNow = new Date().toISOString();
+    fetch(
+      `/api/lookup?norad=${encodeURIComponent(norad)}&horizon=${encodeURIComponent(horizon)}&clientNow=${encodeURIComponent(clientNow)}`,
+      { signal: controller.signal },
+    )
+      .then(async (response) => {
+        const body = (await response.json()) as ConjunctionsResponse;
+        if (!response.ok || body.ok === false) {
+          setLookupNote(body.message ?? "Couldn't load close approaches for that CubeSat. The list on screen is unchanged.");
+          return;
+        }
+        applyRef.current(body);
+      })
+      .catch((cause: unknown) => {
+        if (cause instanceof DOMException && cause.name === "AbortError") return;
+        setLookupNote("Couldn't load close approaches for that CubeSat. The list on screen is unchanged.");
+      });
+    return () => controller.abort();
+  }, [norad, horizon, onSelect, onNorad]);
+
+  async function track(raw: string) {
+    const trimmed = raw.trim();
+    if (!/^\d+$/.test(trimmed) || Number(trimmed) <= 0) {
+      setLookupNote("Enter a numeric NORAD ID.");
+      return;
+    }
+    const id = Number(trimmed);
+    if (id === DEMO_NORAD) {
+      setLookupNote(null);
+      setDraft(String(DEMO_NORAD));
+      setNorad(String(DEMO_NORAD));
+      return;
+    }
+    setLookupNote("Looking up…");
+    try {
+      const clientNow = new Date().toISOString();
+      const response = await fetch(
+        `/api/lookup?norad=${id}&horizon=${encodeURIComponent(horizon)}&clientNow=${encodeURIComponent(clientNow)}`,
+      );
+      const body = (await response.json()) as ConjunctionsResponse;
+      if (!response.ok || body.ok === false) {
+        setLookupNote(body.message ?? "Couldn't load close approaches for that CubeSat. The list on screen is unchanged.");
+        return;
+      }
+      applyRef.current(body);
+      setDraft(String(id));
+      setNorad(String(id));
+    } catch {
+      setLookupNote("Couldn't load close approaches for that CubeSat. The list on screen is unchanged.");
+    }
+  }
+
+  function backToSwissCube() {
+    setLookupNote(null);
+    setDraft(String(DEMO_NORAD));
+    setNorad(String(DEMO_NORAD));
+  }
+
   useEffect(() => subscribeFocusEncounter((id) => {
     const match = rankedRef.current.find((item) => item.id === id);
     if (match) onSelect(match);
@@ -183,9 +280,12 @@ export function WarningList({
   return (
     <section className="flex min-h-0 flex-col bg-panel">
       <header className="border-b border-edge px-4 py-3">
-        <div className="flex items-baseline justify-between gap-2">
+        <div className="flex items-center justify-between gap-2">
           <p className="font-mono text-[11px] tracking-[0.18em] text-accent uppercase">Orbit Watch</p>
-          <MissionRoomPresence />
+          <div className="flex items-center gap-2">
+            <MissionRoomPresence />
+            <VoiceToggle />
+          </div>
         </div>
         <h1 className="mt-1 text-lg leading-tight font-medium">Ranked warnings</h1>
         <MissionRoomFeed />
@@ -193,12 +293,11 @@ export function WarningList({
           className="mt-3 flex flex-wrap items-end gap-2"
           onSubmit={(event) => {
             event.preventDefault();
-            const next = draft.trim();
-            if (next) setNorad(next);
+            void track(draft);
           }}
         >
           <label className="flex flex-col gap-1 text-[11px] tracking-wide text-muted uppercase">
-            NORAD
+            Track another CubeSat
             <input
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
@@ -206,6 +305,29 @@ export function WarningList({
               className="w-28 rounded border border-edge bg-background px-2 py-1 font-mono text-sm tracking-normal text-foreground normal-case"
               aria-label="NORAD catalog number"
             />
+          </label>
+          <label className="flex flex-col gap-1 text-[11px] tracking-wide text-muted uppercase">
+            Known
+            <select
+              aria-label="Well-known CubeSats"
+              defaultValue=""
+              onChange={(event) => {
+                const next = event.target.value;
+                event.currentTarget.value = "";
+                if (next) {
+                  setDraft(next);
+                  void track(next);
+                }
+              }}
+              className="rounded border border-edge bg-background px-2 py-1 text-sm tracking-normal text-foreground normal-case"
+            >
+              <option value="">Pick</option>
+              {TRACKABLE_CUBESATS.map((satellite) => (
+                <option key={satellite.norad} value={satellite.norad}>
+                  {satellite.name}
+                </option>
+              ))}
+            </select>
           </label>
           <label className="flex flex-col gap-1 text-[11px] tracking-wide text-muted uppercase">
             Horizon
@@ -224,9 +346,17 @@ export function WarningList({
             type="submit"
             className="rounded border border-edge px-2 py-1 text-xs text-foreground hover:border-accent"
           >
-            Load
+            Track
+          </button>
+          <button
+            type="button"
+            onClick={backToSwissCube}
+            className="px-1 py-1 text-[11px] tracking-wide text-muted uppercase hover:text-foreground"
+          >
+            Back to SwissCube
           </button>
         </form>
+        {lookupNote && <p className="mt-2 text-xs text-muted">{lookupNote}</p>}
         {data && (
           <p className="mt-2 text-xs text-muted">
             {data.satelliteName}
@@ -328,7 +458,14 @@ export function WarningList({
                   <p className="mt-1 text-[11px] text-muted">Not from SOCRATES: {event.syntheticFields.join(", ")}</p>
                 )}
                 </button>
-                <div className="mt-1.5 flex justify-end">
+                <div className="mt-1.5 flex items-center justify-end gap-3">
+                  <ShareAlertButton
+                    text={shareAlertText({
+                      satelliteName: data.satelliteName,
+                      event,
+                      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+                    })}
+                  />
                   <VerifyLink norad={event.ours.noradId} />
                 </div>
                 <EncounterRoom encounterId={event.id} label={event.other.name} />

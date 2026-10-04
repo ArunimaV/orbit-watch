@@ -29,7 +29,7 @@ export const VOICE_TOOLS: VoiceToolSpec[] = [
       properties: {
         norad: {
           type: "integer",
-          description: "NORAD catalog number of the team's satellite. SwissCube is 35932.",
+          description: "NORAD catalog number of the satellite on screen.",
         },
       },
       required: ["norad"],
@@ -61,7 +61,7 @@ export const VOICE_TOOLS: VoiceToolSpec[] = [
       properties: {
         norad: {
           type: "integer",
-          description: "NORAD catalog number. SwissCube is 35932.",
+          description: "NORAD catalog number of the satellite on screen.",
         },
       },
       required: ["norad"],
