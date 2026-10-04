@@ -25,5 +25,5 @@ export function Countdown({
   const tcaMs = Date.parse(tca);
   const demoMs = Date.parse(evaluatedAt);
   const nowMs = countdownClockMs(tcaMs, wall, demoMs, wall - startedAt);
-  return <span className="font-mono text-[11px] text-accent">{formatCountdown(tcaMs, nowMs)}</span>;
+  return <span className="font-mono text-[11px] text-muted">{formatCountdown(tcaMs, nowMs)}</span>;
 }

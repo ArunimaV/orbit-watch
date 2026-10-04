@@ -407,7 +407,7 @@ export default function CesiumGlobe({
               <span className="block">
                 {formatRange(event.rangeKm)} · {event.relSpeedKms.toFixed(3)} km/s
               </span>
-              {remaining && <span className="block text-accent">{remaining}</span>}
+              {remaining && <span className="block text-muted">{remaining}</span>}
               <span className="pointer-events-auto mt-1 block">
                 <VerifyLink norad={event.ours.noradId} />
               </span>
