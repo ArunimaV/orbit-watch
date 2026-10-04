@@ -18,10 +18,16 @@ export function ThreatAlert({
 }) {
   const [visible, setVisible] = useState(false);
   const [playable, setPlayable] = useState(false);
+  const [played, setPlayed] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const headline = threatHeadline(count, satelliteName, when);
   const headlineRef = useRef(headline);
   headlineRef.current = headline;
+
+  useEffect(() => {
+    const audio = audioRef;
+    return () => releaseAudio(audio);
+  }, []);
 
   useEffect(() => {
     if (!armed || count < 1) return undefined;
@@ -29,9 +35,17 @@ export function ThreatAlert({
     const timer = window.setTimeout(() => {
       if (cancelled) return;
       setVisible(true);
+      setPlayed(false);
+      setPlayable(false);
       const alreadySpoken = sessionStorage.getItem(SESSION_KEY) === "1";
       if (!alreadySpoken) sessionStorage.setItem(SESSION_KEY, "1");
-      void speakAlert(headlineRef.current, audioRef, setPlayable, !alreadySpoken);
+      void speakAlert(headlineRef.current, audioRef, {
+        showButton: () => setPlayable(true),
+        markPlayed: () => {
+          setPlayed(true);
+          setPlayable(true);
+        },
+      }, !alreadySpoken);
     }, 400);
     return () => {
       cancelled = true;
@@ -53,16 +67,22 @@ export function ThreatAlert({
             type="button"
             className="shrink-0 text-[10px] tracking-wide text-accent uppercase"
             onClick={() => {
-              void audioRef.current?.play().then(() => setPlayable(false)).catch(() => setPlayable(true));
+              const audio = audioRef.current;
+              if (!audio) return;
+              audio.currentTime = 0;
+              void audio.play().then(() => setPlayed(true)).catch(() => setPlayable(true));
             }}
           >
-            Play alert
+            {played ? "Replay alert" : "Play alert"}
           </button>
         )}
         <button
           type="button"
           className="shrink-0 text-[10px] tracking-wide text-muted uppercase"
-          onClick={() => setVisible(false)}
+          onClick={() => {
+            audioRef.current?.pause();
+            setVisible(false);
+          }}
         >
           Dismiss
         </button>
@@ -71,10 +91,18 @@ export function ThreatAlert({
   );
 }
 
+function releaseAudio(audioRef: { current: HTMLAudioElement | null }) {
+  const previous = audioRef.current;
+  if (!previous) return;
+  previous.pause();
+  if (previous.src.startsWith("blob:")) URL.revokeObjectURL(previous.src);
+  audioRef.current = null;
+}
+
 async function speakAlert(
   text: string,
   audioRef: { current: HTMLAudioElement | null },
-  setPlayable: (value: boolean) => void,
+  callbacks: { showButton: () => void; markPlayed: () => void },
   autoplay: boolean,
 ) {
   try {
@@ -88,16 +116,17 @@ async function speakAlert(
     const blob = await response.blob();
     const url = URL.createObjectURL(blob);
     const audio = new Audio(url);
+    releaseAudio(audioRef);
     audioRef.current = audio;
-    audio.onended = () => URL.revokeObjectURL(url);
     if (!autoplay) {
-      setPlayable(true);
+      callbacks.showButton();
       return;
     }
     try {
       await audio.play();
+      callbacks.markPlayed();
     } catch {
-      setPlayable(true);
+      callbacks.showButton();
     }
   } catch {
     // The banner text is the fallback when speech cannot be fetched or played.
