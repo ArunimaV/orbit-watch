@@ -58,12 +58,12 @@ export function ThreatAlert({
   if (!visible) return null;
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 top-2 z-40 flex justify-center px-3">
+    <div className="pointer-events-none fixed inset-x-0 top-2 z-40 px-3 md:top-[42px] md:grid md:grid-cols-[minmax(280px,360px)_minmax(0,1fr)_minmax(240px,300px)] md:px-0">
       <div
         role="status"
-        className="pointer-events-auto orbit-fade-in flex max-w-md items-center gap-2 rounded border border-act/40 bg-panel/90 px-3 py-1.5 shadow-sm"
+        className="pointer-events-auto orbit-fade-in flex items-center gap-3 rounded border border-act/40 bg-panel/90 px-3 py-1.5 shadow-sm md:col-start-2 md:mx-4"
       >
-        <p className="text-xs leading-snug text-foreground">{headline}</p>
+        <p className="min-w-0 flex-1 text-xs leading-snug text-foreground">{headline}</p>
         {lead && (
           <ShareAlertButton
             text={shareAlertText({
