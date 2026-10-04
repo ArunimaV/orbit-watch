@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { threatHeadline } from "@/lib/countdown";
+import { grokAlertFeedLine, postMissionFeed } from "@/lib/mission-room";
 
 const SESSION_KEY = "orbit-watch-alert";
 
@@ -30,7 +31,10 @@ export function ThreatAlert({
       if (cancelled) return;
       setVisible(true);
       const alreadySpoken = sessionStorage.getItem(SESSION_KEY) === "1";
-      if (!alreadySpoken) sessionStorage.setItem(SESSION_KEY, "1");
+      if (!alreadySpoken) {
+        sessionStorage.setItem(SESSION_KEY, "1");
+        postMissionFeed("grok", grokAlertFeedLine(headlineRef.current));
+      }
       void speakAlert(headlineRef.current, audioRef, setPlayable, !alreadySpoken);
     }, 400);
     return () => {

@@ -7,6 +7,7 @@ import { dispatchFocusEncounter } from "@/lib/focus";
 import { pcm16ToBase64 } from "@/lib/pcm";
 import { RealtimeClient, openRealtimeSocket } from "@/lib/realtime-client";
 import { voiceInstructions } from "@/lib/voice-prompt";
+import { grokBriefFeedLine, postMissionFeed } from "@/lib/mission-room";
 import { MISSING_KEY_MESSAGE } from "@/lib/xai-config";
 
 interface TranscriptLine {
@@ -396,6 +397,7 @@ export function VoicePanel({
       const id = lineId();
       grokLineRef.current = null;
       appendLines([{ id, role: "grok", text: body.text }]);
+      postMissionFeed("grok", grokBriefFeedLine(body.text));
       if (body.message) setBanner(body.message);
       if (!body.mock) await speak(body.text, epoch);
     } catch (cause) {
