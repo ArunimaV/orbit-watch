@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
-export function ShareAlertButton({ text }: { text: string }) {
+export function ShareAlertButton({ text, tone = "card" }: { text: string; tone?: "card" | "banner" }) {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -22,9 +22,11 @@ export function ShareAlertButton({ text }: { text: string }) {
           event.stopPropagation();
           void shareAlert(text, () => setCopied(true));
         }}
-        className={`shrink-0 rounded border px-2 py-1 text-[11px] font-medium tracking-wide uppercase ${
-          copied ? "border-accent bg-accent text-background" : "border-transparent text-muted hover:text-accent"
-        }`}
+        className={`shrink-0 rounded border font-medium uppercase ${
+          tone === "banner"
+            ? `py-0 text-xs tracking-[0.16em] ${copied ? "px-1.5" : "px-0"}`
+            : "px-2 py-1 text-[11px] tracking-wide"
+        } ${copied ? "border-accent bg-accent text-background" : "border-transparent text-muted hover:text-accent"}`}
       >
         {copied ? "Copied!" : "Share"}
       </button>

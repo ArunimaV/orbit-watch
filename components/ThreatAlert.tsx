@@ -76,46 +76,49 @@ export function ThreatAlert({
   if (!visible) return null;
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 top-2 z-40 flex justify-center px-3">
+    <div className="pointer-events-none fixed inset-x-0 top-2 z-40 px-3 md:top-[42px] md:grid md:grid-cols-[minmax(280px,360px)_minmax(0,1fr)_minmax(240px,300px)] md:px-0">
       <div
         role="status"
-        className="pointer-events-auto orbit-fade-in flex max-w-md items-center gap-2 rounded border border-act/40 bg-panel/90 px-3 py-1.5 shadow-sm"
+        className="pointer-events-auto orbit-fade-in flex items-center gap-3 rounded border border-act/40 bg-panel/90 px-3 py-1.5 shadow-sm md:col-start-2 md:mx-4"
       >
-        <p className="text-xs leading-snug text-foreground">{headline}</p>
-        {lead && (
-          <ShareAlertButton
-            text={shareAlertText({
-              satelliteName,
-              event: lead,
-              timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
-            })}
-          />
-        )}
-        {playable && voiceEnabled && (
+        <p className="min-w-0 flex-1 text-xs leading-5 text-foreground md:truncate">{headline}</p>
+        <div className="flex shrink-0 items-center gap-4">
+          {lead && (
+            <ShareAlertButton
+              tone="banner"
+              text={shareAlertText({
+                satelliteName,
+                event: lead,
+                timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+              })}
+            />
+          )}
+          {playable && voiceEnabled && (
+            <button
+              type="button"
+              className="text-xs font-medium tracking-[0.16em] text-accent uppercase"
+              onClick={() => {
+                if (!readVoiceEnabled()) return;
+                const replay = replayRef.current;
+                if (!replay) return;
+                void replay().then(() => setPlayed(true)).catch(() => setPlayable(true));
+              }}
+            >
+              {played ? "Replay alert" : "Play alert"}
+            </button>
+          )}
           <button
             type="button"
-            className="shrink-0 text-[10px] tracking-wide text-accent uppercase"
+            className="text-xs font-medium tracking-[0.16em] text-muted uppercase"
             onClick={() => {
-              if (!readVoiceEnabled()) return;
-              const replay = replayRef.current;
-              if (!replay) return;
-              void replay().then(() => setPlayed(true)).catch(() => setPlayable(true));
+              audioRef.current?.pause();
+              window.speechSynthesis?.cancel();
+              setVisible(false);
             }}
           >
-            {played ? "Replay alert" : "Play alert"}
+            Dismiss
           </button>
-        )}
-        <button
-          type="button"
-          className="shrink-0 text-[10px] tracking-wide text-muted uppercase"
-          onClick={() => {
-            audioRef.current?.pause();
-            window.speechSynthesis?.cancel();
-            setVisible(false);
-          }}
-        >
-          Dismiss
-        </button>
+        </div>
       </div>
     </div>
   );
