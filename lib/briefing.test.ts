@@ -72,6 +72,27 @@ describe("createBriefing", () => {
     expect(body.input[0]?.content).toMatch(/621/);
     expect(body.input[0]?.content).not.toMatch(/focus_encounter/);
     expect(body.input[0]?.content).not.toMatch(/Call tools/);
+    expect(body.input[0]?.content).toMatch(/SwissCube, NORAD 35932/);
+  });
+
+  it("asks for a brief of the looked-up satellite, not SwissCube", async () => {
+    const fetchImpl = vi.fn(async () => new Response("no", { status: 500 }));
+    const briefing = await createBriefing({
+      norad: 43017,
+      timeZone: "UTC",
+      toolOptions: OPTIONS,
+      apiKey: "server-key",
+      fetchImpl,
+    });
+    expect(briefing.source).toBe("local");
+    expect(briefing.text).toMatch(/AO-91/);
+    expect(briefing.text).not.toMatch(/SwissCube/);
+    const body = JSON.parse(String((fetchImpl.mock.calls[0] as [string, RequestInit])[1].body)) as {
+      input: { content: string }[];
+    };
+    expect(body.input[0]?.content).toMatch(/AO-91, NORAD 43017/);
+    expect(body.input[0]?.content).not.toMatch(/SwissCube/);
+    expect(body.input[0]?.content).not.toMatch(/BEESAT-1 is just flying alongside you/);
   });
 
   it("falls back to the ranker when grok returns filler or too little text", async () => {
