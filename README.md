@@ -82,7 +82,8 @@ On load the SwissCube vs SL-8 DEB card is selected. The camera flies to the pair
 
 ## API
 
-- `GET /api/conjunctions?norad=35932&horizon=168` — ranked cards plus `dismissed: N` grouped by reason. `now` is the evaluation clock (the demo clock in fixture mode).
+- `GET /api/conjunctions?norad=35932&horizon=168` — ranked cards plus `dismissed: N` grouped by reason. `now` is the evaluation clock (the demo clock in fixture mode). SwissCube on first load stays on this saved demo.
+- `GET /api/lookup?norad=43017&horizon=168` — the same ranked payload for any other catalog number. One `http://celestrak.org/SOCRATES/table-socrates.php` request, 8 second timeout, cached for 10 hours. A failure or an empty screen leaves the current view in place.
 - `GET /api/encounter/[id]` — both OMMs through `json2satrec`, positions every 10 s from TCA−15 min to TCA+15 min, ECI then ECF then geodetic, and this app's own minimum separation.
 - `POST /api/voice/token` — mints an ephemeral realtime client secret (`value`, `expires_at` only). `GET` reports whether a key is set and does not mint.
 - `POST /api/voice/tools` — `get_ranked_warnings`, `get_encounter`, `explain_dismissed`, `focus_encounter`.
