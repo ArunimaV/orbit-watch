@@ -18,20 +18,23 @@ export function ShareAlertButton({ text }: { text: string }) {
         type="button"
         aria-label="Share this alert"
         onClick={(event) => {
+          event.preventDefault();
           event.stopPropagation();
           void shareAlert(text).then((copiedNow) => {
             if (copiedNow) setCopied(true);
           });
         }}
-        className="shrink-0 text-[10px] tracking-wide text-muted uppercase hover:text-accent"
+        className={`shrink-0 rounded border px-2 py-1 text-[11px] font-medium tracking-wide uppercase ${
+          copied ? "border-accent bg-accent text-background" : "border-transparent text-muted hover:text-accent"
+        }`}
       >
-        Share
+        {copied ? "Copied!" : "Share"}
       </button>
       {copied &&
         createPortal(
           <p
             role="status"
-            className="pointer-events-none fixed bottom-16 left-4 z-[80] rounded-md border-2 border-accent bg-background px-5 py-3 text-base font-semibold tracking-wide text-accent shadow-lg"
+            className="pointer-events-none fixed bottom-8 left-1/2 z-[90] -translate-x-1/2 rounded-full bg-accent px-6 py-3 text-base font-semibold tracking-wide text-background shadow-lg"
           >
             Copied!
           </p>,
