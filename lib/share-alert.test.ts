@@ -66,6 +66,8 @@ describe("deliverShare", () => {
     const share = vi.fn(async () => {
       throw new DOMException("cancelled", "AbortError");
     });
-    await expect(deliverShare("hello", { share, clipboard: { writeText } })).resolves.toBe("cancelled");
+    await expect(
+      deliverShare("hello", { share, clipboard: { writeText }, userAgent: "Mozilla/5.0 (iPhone)" }),
+    ).resolves.toBe("cancelled");
   });
 });
