@@ -20,9 +20,7 @@ export function ShareAlertButton({ text }: { text: string }) {
         onClick={(event) => {
           event.preventDefault();
           event.stopPropagation();
-          void shareAlert(text).then((copiedNow) => {
-            if (copiedNow) setCopied(true);
-          });
+          void shareAlert(text, () => setCopied(true));
         }}
         className={`shrink-0 rounded border px-2 py-1 text-[11px] font-medium tracking-wide uppercase ${
           copied ? "border-accent bg-accent text-background" : "border-transparent text-muted hover:text-accent"
@@ -51,41 +49,41 @@ function shouldUseWebShare(payload: ShareData): boolean {
   return typeof navigator.canShare !== "function" || navigator.canShare(payload);
 }
 
-async function shareAlert(text: string): Promise<boolean> {
+async function shareAlert(text: string, onCopied: () => void): Promise<void> {
   const payload: ShareData = { title: "Orbit Watch alert", text };
   if (shouldUseWebShare(payload)) {
     try {
       await navigator.share(payload);
-      return false;
+      return;
     } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") return false;
+      if (error instanceof DOMException && error.name === "AbortError") return;
     }
+  }
+  // Selection copy has to happen in this click, before any await, or the browser rejects it.
+  if (copyWithSelection(text)) {
+    onCopied();
+    return;
   }
   try {
-    await copyText(text);
+    await navigator.clipboard?.writeText(text);
+    onCopied();
   } catch {
-    return false;
+    // Leave the button unchanged when nothing was copied.
   }
-  return true;
 }
 
-async function copyText(text: string): Promise<void> {
-  if (navigator.clipboard?.writeText) {
-    try {
-      await navigator.clipboard.writeText(text);
-      return;
-    } catch {
-      // Fall through to the selection copy for browsers that block the async API.
-    }
-  }
+function copyWithSelection(text: string): boolean {
   const area = document.createElement("textarea");
   area.value = text;
   area.setAttribute("readonly", "");
   area.style.position = "fixed";
-  area.style.left = "-9999px";
+  area.style.top = "0";
+  area.style.left = "0";
+  area.style.opacity = "0";
   document.body.appendChild(area);
+  area.focus();
   area.select();
   const ok = document.execCommand("copy");
   area.remove();
-  if (!ok) throw new Error("copy failed");
+  return ok;
 }
