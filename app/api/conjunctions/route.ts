@@ -1,9 +1,17 @@
 import { NextResponse } from "next/server";
-import { DEFAULT_HORIZON_HOURS, DEMO_NORAD, KNOWN_SATELLITES } from "@/lib/constants";
+import { DEFAULT_HORIZON_HOURS, DEMO_ENCOUNTER_NORAD, DEMO_NORAD, KNOWN_SATELLITES } from "@/lib/constants";
+import { readDemoNow } from "@/lib/demo-clock";
 import { rankConjunctions } from "@/lib/rank";
 import { eventsForNorad, loadConjunctionSource } from "@/lib/socrates";
 
 export const dynamic = "force-dynamic";
+
+function parseClientNow(value: string | null): Date | null {
+  if (!value) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed;
+}
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -20,7 +28,12 @@ export async function GET(request: Request) {
   try {
     const loaded = loadConjunctionSource();
     const events = eventsForNorad(loaded.snapshot, norad);
-    const result = rankConjunctions(events, norad, new Date(), horizonHours);
+    const fixture = loaded.source === "fixture";
+    const clientNow = parseClientNow(url.searchParams.get("clientNow"));
+    const now = fixture ? readDemoNow() : (clientNow ?? new Date());
+    const result = rankConjunctions(events, norad, now, horizonHours, {
+      preservePastNorads: fixture ? [DEMO_ENCOUNTER_NORAD] : [],
+    });
     const known = KNOWN_SATELLITES[norad];
     const dismissedCount = result.dismissed.reduce((sum, group) => sum + group.count, 0);
     return NextResponse.json({
@@ -28,6 +41,7 @@ export async function GET(request: Request) {
       satelliteName: known?.name ?? result.ranked[0]?.ours.name ?? `NORAD ${norad}`,
       satelliteDetail: known?.detail ?? null,
       horizonHours,
+      now: now.toISOString(),
       generatedAt: new Date().toISOString(),
       source: loaded.source,
       note: loaded.snapshot.note ?? null,

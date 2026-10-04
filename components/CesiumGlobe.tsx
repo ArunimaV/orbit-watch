@@ -23,6 +23,7 @@ import {
 import { useCesium, Viewer } from "resium";
 import type { TrackSample } from "@/lib/encounter";
 import { subscribeFocusEncounter } from "@/lib/focus";
+import { formatApproachTime } from "@/lib/time-format";
 import { nearestSampleIndex } from "@/lib/tracks";
 import type { RankedEvent } from "@/lib/types";
 
@@ -41,6 +42,14 @@ function formatRange(km: number): string {
   const meters = km * 1000;
   if (meters < 10_000) return `${Math.round(meters).toLocaleString()} m`;
   return `${km.toFixed(2)} km`;
+}
+
+function approachFor(event: RankedEvent | null, evaluatedAt: string | null) {
+  if (!event || !evaluatedAt) return null;
+  const now = new Date(evaluatedAt);
+  if (Number.isNaN(now.getTime())) return null;
+  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  return formatApproachTime(event.tca, zone, now);
 }
 
 function formatLocal(iso: string): string {
@@ -191,7 +200,13 @@ function EncounterScene({
   return null;
 }
 
-export default function CesiumGlobe({ event }: { event: RankedEvent | null }) {
+export default function CesiumGlobe({
+  event,
+  evaluatedAt,
+}: {
+  event: RankedEvent | null;
+  evaluatedAt: string | null;
+}) {
   const [baseLayer, setBaseLayer] = useState<ImageryLayer | null>(null);
   const [encounter, setEncounter] = useState<EncounterPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -200,6 +215,7 @@ export default function CesiumGlobe({ event }: { event: RankedEvent | null }) {
   const [playing, setPlaying] = useState(true);
   const [flyToken, setFlyToken] = useState(0);
   const [renderUrl, setRenderUrl] = useState<string | null>(null);
+  const [renderPending, setRenderPending] = useState(false);
   const terrainProvider = useMemo(() => new EllipsoidTerrainProvider(), []);
 
   useEffect(() => {
@@ -211,17 +227,22 @@ export default function CesiumGlobe({ event }: { event: RankedEvent | null }) {
   useEffect(() => {
     if (!event) {
       setRenderUrl(null);
+      setRenderPending(false);
       return undefined;
     }
     const controller = new AbortController();
+    setRenderUrl(null);
+    setRenderPending(true);
     fetch(`/api/imagine/${encodeURIComponent(event.id)}`, { signal: controller.signal })
       .then(async (response) => (await response.json()) as { url?: string })
       .then((body) => {
         setRenderUrl(typeof body.url === "string" ? body.url : null);
+        setRenderPending(false);
       })
       .catch((cause: unknown) => {
         if (cause instanceof DOMException && cause.name === "AbortError") return;
         setRenderUrl("/renders/swisscube-sl8deb.jpg");
+        setRenderPending(false);
       });
     return () => controller.abort();
   }, [event]);
@@ -285,8 +306,11 @@ export default function CesiumGlobe({ event }: { event: RankedEvent | null }) {
   const sampleCount = encounter?.tracks.ours.length ?? 0;
   const currentTime = encounter?.tracks.ours[index]?.t;
   const tcaIndex = encounter ? nearestSampleIndex(encounter.tracks.ours, encounter.tca) : 0;
+  const approach = approachFor(event, evaluatedAt);
   const label = event
-    ? `${event.other.name}\n${formatRange(event.rangeKm)} · ${event.relSpeedKms.toFixed(3)} km/s`
+    ? `${event.other.name}\n${formatRange(event.rangeKm)} · ${event.relSpeedKms.toFixed(3)} km/s${
+        approach ? `\n${approach.label}` : ""
+      }`
     : "";
 
   return (
@@ -334,12 +358,27 @@ export default function CesiumGlobe({ event }: { event: RankedEvent | null }) {
           <span className="text-accent">cyan · ours</span>
           <span className="text-act">red · other object</span>
           {event && encounter && (
-            <span className="mt-1 rounded bg-background/90 px-2 py-1 font-mono text-xs text-foreground">
-              TCA · {formatRange(event.rangeKm)} · {event.relSpeedKms.toFixed(3)} km/s
+            <span className="mt-1 rounded bg-background/90 px-2 py-1 font-mono text-xs leading-snug text-foreground">
+              {approach ? (
+                <>
+                  <span className="block">{approach.label}</span>
+                  <span className="block text-[10px] text-muted">{approach.utc}</span>
+                </>
+              ) : (
+                <span className="block">TCA</span>
+              )}
+              <span className="block">
+                {formatRange(event.rangeKm)} · {event.relSpeedKms.toFixed(3)} km/s
+              </span>
             </span>
           )}
         </div>
-        {renderUrl && (
+        {renderPending && (
+          <p className="absolute top-3 right-3 z-10 w-44 rounded border border-edge bg-background/90 px-2 py-3 text-[11px] text-muted sm:w-56">
+            Generating render…
+          </p>
+        )}
+        {renderUrl && !renderPending && (
           <figure className="pointer-events-none absolute top-3 right-3 z-10 w-44 sm:w-56">
             <Image
               src={renderUrl}

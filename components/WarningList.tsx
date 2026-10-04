@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { TcaTime } from "@/components/TcaTime";
 import { DEMO_ENCOUNTER_NORAD, DEMO_NORAD } from "@/lib/constants";
 import { subscribeFocusEncounter } from "@/lib/focus";
 import type { DismissedGroup, RankedEvent, Tier } from "@/lib/types";
@@ -10,6 +11,7 @@ interface ConjunctionsResponse {
   satelliteName: string;
   satelliteDetail: string | null;
   horizonHours: number;
+  now: string;
   source: "snapshot" | "fixture";
   note: string | null;
   totalEvents: number;
@@ -31,17 +33,6 @@ function formatRange(km: number): string {
   return `${km.toFixed(2)} km`;
 }
 
-function formatLocal(iso: string): string {
-  return new Date(iso).toLocaleString(undefined, {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    timeZoneName: "short",
-  });
-}
-
 function formatScore(score: number): string {
   return score.toFixed(1);
 }
@@ -50,10 +41,12 @@ export function WarningList({
   selectedId,
   onSelect,
   onNorad,
+  onEvaluated,
 }: {
   selectedId: string | null;
   onSelect: (event: RankedEvent | null) => void;
   onNorad?: (norad: number) => void;
+  onEvaluated?: (nowIso: string) => void;
 }) {
   const [draft, setDraft] = useState(String(DEMO_NORAD));
   const [norad, setNorad] = useState(String(DEMO_NORAD));
@@ -65,13 +58,19 @@ export function WarningList({
   selectedIdRef.current = selectedId;
   const rankedRef = useRef<RankedEvent[]>([]);
   rankedRef.current = data?.ranked ?? [];
+  const onEvaluatedRef = useRef(onEvaluated);
+  onEvaluatedRef.current = onEvaluated;
 
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
-    fetch(`/api/conjunctions?norad=${encodeURIComponent(norad)}&horizon=${encodeURIComponent(horizon)}`, {
-      signal: controller.signal,
-    })
+    const clientNow = new Date().toISOString();
+    fetch(
+      `/api/conjunctions?norad=${encodeURIComponent(norad)}&horizon=${encodeURIComponent(horizon)}&clientNow=${encodeURIComponent(clientNow)}`,
+      {
+        signal: controller.signal,
+      },
+    )
       .then(async (response) => {
         const body = (await response.json()) as ConjunctionsResponse;
         if (!response.ok) throw new Error(body.error ?? `Request failed (${response.status})`);
@@ -80,6 +79,7 @@ export function WarningList({
       .then((body) => {
         setData(body);
         setError(null);
+        if (body.now) onEvaluatedRef.current?.(body.now);
         onNorad?.(body.norad);
         const stillSelected = body.ranked.some((item) => item.id === selectedIdRef.current);
         if (!stillSelected) {
@@ -174,12 +174,16 @@ export function WarningList({
                     <li key={group.reason} className="text-xs leading-snug text-muted">
                       <span className="text-foreground">{group.reason}</span>
                       <span className="font-mono"> · {group.count}</span>
-                      {group.examples[0] && (
-                        <span>
-                          {" "}
-                          — {group.examples.map((example) => example.otherName).join(", ")}
-                          {group.examples[0].detail ? ` (${group.examples[0].detail})` : ""}
-                        </span>
+                      {group.examples.length > 0 && (
+                        <ul className="mt-1 flex flex-col gap-1">
+                          {group.examples.map((example) => (
+                            <li key={example.id}>
+                              <span className="text-foreground">{example.otherName}</span>
+                              {example.detail ? ` (${example.detail})` : ""}
+                              {data.now && <TcaTime iso={example.tca} nowIso={data.now} />}
+                            </li>
+                          ))}
+                        </ul>
                       )}
                     </li>
                   ))}
@@ -234,7 +238,9 @@ export function WarningList({
                   </div>
                   <div>
                     <dt className="text-[10px] tracking-wide text-muted uppercase">TCA</dt>
-                    <dd className="text-[11px] leading-snug">{formatLocal(event.tca)}</dd>
+                    <dd className="text-[11px] leading-snug">
+                      {data.now ? <TcaTime iso={event.tca} nowIso={data.now} /> : event.tca}
+                    </dd>
                   </div>
                 </dl>
                 <p className="mt-2 text-[11px] text-muted">

@@ -143,4 +143,24 @@ describe("rankConjunctions", () => {
     expect(reasons).toContain(DISMISS.outsideHorizon);
     expect(result.ranked).toHaveLength(0);
   });
+
+  it("keeps SL-8 DEB ranked at the demo clock, and after its TCA when asked to preserve it", () => {
+    const fixture = loadFixtureSnapshot();
+    const events = eventsForNorad(fixture, 35932);
+    const duringJudging = rankConjunctions(events, 35932, new Date("2026-10-04T16:00:00.000Z"), 24 * 7);
+    expect(duringJudging.ranked[0]?.other.noradId).toBe(19831);
+    expect(duringJudging.ranked[0]?.tier).toBe("Act");
+
+    const afterPass = new Date("2026-10-06T00:00:00.000Z");
+    const dropped = rankConjunctions(events, 35932, afterPass, 24 * 7);
+    expect(dropped.ranked.some((event) => event.other.noradId === 19831)).toBe(false);
+    expect(dropped.dismissed.some((group) => group.reason === DISMISS.alreadyHappened)).toBe(true);
+
+    const kept = rankConjunctions(events, 35932, afterPass, 24 * 7, { preservePastNorads: [19831] });
+    const sl8 = kept.ranked.find((event) => event.other.noradId === 19831);
+    expect(sl8?.tier).toBe("Act");
+    expect(sl8?.score).toBeGreaterThanOrEqual(70);
+    expect(sl8?.hoursToTca).toBeLessThan(0);
+    expect(kept.ranked.some((event) => event.other.noradId === 35933)).toBe(false);
+  });
 });

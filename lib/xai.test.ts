@@ -105,4 +105,14 @@ describe("extractResponseText", () => {
     });
     expect(text).toBe("621 meters.");
   });
+
+  it("skips a reasoning item and reads the later message", () => {
+    const text = extractResponseText({
+      output: [
+        { type: "reasoning", content: [{ type: "reasoning_text", text: "thinking" }] },
+        { type: "message", content: [{ type: "output_text", text: "Tonight at 9:26 PM." }] },
+      ],
+    });
+    expect(text).toBe("Tonight at 9:26 PM.");
+  });
 });
