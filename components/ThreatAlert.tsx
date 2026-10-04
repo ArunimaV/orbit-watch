@@ -2,8 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ShareAlertButton } from "@/components/ShareAlertButton";
+import { useVoicePreference } from "@/components/VoicePreference";
 import { threatHeadline } from "@/lib/countdown";
 import { shareAlertText } from "@/lib/share-alert";
+import { bindSpeechStop, readVoiceEnabled } from "@/lib/voice-preference";
 import type { RankedEvent } from "@/lib/types";
 
 const SESSION_KEY = "orbit-watch-alert";
@@ -23,6 +25,7 @@ export function ThreatAlert({
 }) {
   const [visible, setVisible] = useState(false);
   const [playable, setPlayable] = useState(false);
+  const { enabled: voiceEnabled } = useVoicePreference();
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const headline = threatHeadline(count, satelliteName, when);
   const headlineRef = useRef(headline);
@@ -44,6 +47,14 @@ export function ThreatAlert({
     };
   }, [armed, count]);
 
+  useEffect(
+    () =>
+      bindSpeechStop(() => {
+        audioRef.current?.pause();
+      }),
+    [],
+  );
+
   if (!visible) return null;
 
   return (
@@ -62,11 +73,12 @@ export function ThreatAlert({
             })}
           />
         )}
-        {playable && (
+        {playable && voiceEnabled && (
           <button
             type="button"
             className="shrink-0 text-[10px] tracking-wide text-accent uppercase"
             onClick={() => {
+              if (!readVoiceEnabled()) return;
               void audioRef.current?.play().then(() => setPlayable(false)).catch(() => setPlayable(true));
             }}
           >
@@ -91,6 +103,7 @@ async function speakAlert(
   setPlayable: (value: boolean) => void,
   autoplay: boolean,
 ) {
+  if (!readVoiceEnabled()) return;
   try {
     const response = await fetch("/api/tts", {
       method: "POST",
@@ -104,6 +117,12 @@ async function speakAlert(
     const audio = new Audio(url);
     audioRef.current = audio;
     audio.onended = () => URL.revokeObjectURL(url);
+    if (!readVoiceEnabled()) {
+      audio.pause();
+      audioRef.current = null;
+      URL.revokeObjectURL(url);
+      return;
+    }
     if (!autoplay) {
       setPlayable(true);
       return;

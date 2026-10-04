@@ -7,6 +7,7 @@ import { dispatchFocusEncounter } from "@/lib/focus";
 import { pcm16ToBase64 } from "@/lib/pcm";
 import { RealtimeClient, openRealtimeSocket } from "@/lib/realtime-client";
 import { voiceInstructions } from "@/lib/voice-prompt";
+import { bindSpeechStop, readVoiceEnabled } from "@/lib/voice-preference";
 import { MISSING_KEY_MESSAGE } from "@/lib/xai-config";
 
 interface TranscriptLine {
@@ -70,6 +71,7 @@ export function VoicePanel({
   const briefLockRef = useRef(false);
   const chainRef = useRef(Promise.resolve());
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const stopPlaybackRef = useRef<() => void>(() => {});
   const transcriptEpoch = useRef(0);
   const dropAssistantRef = useRef(false);
   const logRef = useRef<HTMLDivElement>(null);
@@ -126,6 +128,8 @@ export function VoicePanel({
       audioRef.current?.pause();
     };
   }, []);
+
+  useEffect(() => bindSpeechStop(() => stopPlaybackRef.current()), []);
 
   useEffect(() => {
     if (!renderOpen) return;
@@ -243,7 +247,7 @@ export function VoicePanel({
         if (final) userTurnOpenRef.current = false;
       },
       onAudio: (bytes) => {
-        if (dropAssistantRef.current) return;
+        if (dropAssistantRef.current || !readVoiceEnabled()) return;
         player.enqueue(pcm16FromBytes(bytes));
       },
       onError: (message) => setError(message),
@@ -324,6 +328,7 @@ export function VoicePanel({
     }
     playerRef.current?.stop();
   }
+  stopPlaybackRef.current = stopPlayback;
 
   function clearTranscript() {
     transcriptEpoch.current += 1;
@@ -337,6 +342,7 @@ export function VoicePanel({
   }
 
   async function speak(text: string, epoch: number) {
+    if (!readVoiceEnabled()) return;
     const response = await fetch("/api/tts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -350,11 +356,16 @@ export function VoicePanel({
       return;
     }
     const blob = await response.blob();
-    if (transcriptEpoch.current !== epoch) return;
+    if (transcriptEpoch.current !== epoch || !readVoiceEnabled()) return;
     const url = URL.createObjectURL(blob);
     const audio = new Audio(url);
     audioRef.current = audio;
     audio.onended = () => URL.revokeObjectURL(url);
+    if (!readVoiceEnabled()) {
+      audioRef.current = null;
+      URL.revokeObjectURL(url);
+      return;
+    }
     try {
       await audio.play();
     } catch {
