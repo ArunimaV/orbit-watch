@@ -789,7 +789,7 @@ export default function CesiumGlobe({
           </p>
         )}
         <div className="pointer-events-none absolute top-3 left-3 z-[2] flex flex-col gap-1 text-[11px]">
-          <span className="font-medium text-accent">{event?.ours.name ?? board?.satelliteName ?? "Tracked satellite"}</span>
+          <span className="font-medium text-accent">{board?.satelliteName ?? event?.ours.name ?? "Tracked satellite"}</span>
           {legendThreats.map((item) => (
             <span key={item.id} style={{ color: threatOrbitColor(item.tier) }}>
               {item.other.name}
