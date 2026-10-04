@@ -79,10 +79,12 @@ function briefingClock(evaluatedAt: string | null): Date {
 
 export function VoicePanel({
   norad,
+  satelliteName,
   encounterId,
   evaluatedAt,
 }: {
   norad: number;
+  satelliteName: string;
   encounterId: string | null;
   evaluatedAt: string | null;
 }) {
@@ -97,6 +99,10 @@ export function VoicePanel({
   const [renderOpen, setRenderOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const noradRef = useRef(norad);
+  noradRef.current = norad;
+  const satelliteNameRef = useRef(satelliteName);
+  satelliteNameRef.current = satelliteName;
   const socketRef = useRef<WebSocket | null>(null);
   const clientRef = useRef<RealtimeClient | null>(null);
   const playerRef = useRef<PcmPlayer | null>(null);
@@ -174,6 +180,17 @@ export function VoicePanel({
   useEffect(() => bindSpeechStop(() => stopPlaybackRef.current()), []);
 
   useEffect(() => {
+    transcriptEpoch.current += 1;
+    setLines([]);
+    setBanner(null);
+    stopPlaybackRef.current();
+    socketRef.current?.close();
+    socketRef.current = null;
+    clientRef.current = null;
+    setConnected(false);
+  }, [norad]);
+
+  useEffect(() => {
     if (!encounterId) return undefined;
     const key = briefCacheKey(norad, encounterId);
     const controller = new AbortController();
@@ -236,6 +253,7 @@ export function VoicePanel({
         name,
         arguments: {
           ...args,
+          ...(name === "get_ranked_warnings" || name === "explain_dismissed" ? { norad: noradRef.current } : {}),
           timeZone: listenerZone(),
           clientNow: new Date().toISOString(),
         },
@@ -271,7 +289,10 @@ export function VoicePanel({
         if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(payload));
       },
       executeTool,
-      instructions: voiceInstructions(listenerZone(), briefingClock(evaluatedAt)),
+      instructions: voiceInstructions(listenerZone(), briefingClock(evaluatedAt), {
+        name: satelliteNameRef.current,
+        norad: noradRef.current,
+      }),
       onAssistantDelta: (delta) => {
         if (briefLockRef.current || dropAssistantRef.current) return;
         if (!grokLineRef.current) {
@@ -558,7 +579,7 @@ export function VoicePanel({
         {error && <p className="mb-3 text-xs leading-relaxed text-act">{error}</p>}
         {lines.length === 0 && !banner && !briefing && (
           <p className="text-sm leading-relaxed text-muted">
-            Hold the mic and ask about SwissCube, or use Brief me if the mic is unavailable.
+            Hold the mic and ask about {satelliteName}, or use Brief me if the mic is unavailable.
           </p>
         )}
         <div className="flex flex-col gap-3">
