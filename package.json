@@ -17,7 +17,8 @@
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "resium": "^1.26.0",
-    "satellite.js": "^7.1.0"
+    "satellite.js": "^7.1.0",
+    "spacetimedb": "2.10.2"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
