@@ -121,6 +121,7 @@ describe("rankConjunctions", () => {
     expect(duplicate?.examples[0]?.otherNorad).toBe(29842);
     expect(duplicate?.examples[0]?.detail).toMatch(/the same pair, 3 passes/);
     expect(duplicate?.count).toBe(2);
+    expect(duplicate?.examples).toHaveLength(2);
     expect(result.ranked.some((event) => event.other.noradId === 29842)).toBe(false);
   });
 
@@ -162,5 +163,26 @@ describe("rankConjunctions", () => {
     expect(sl8?.score).toBeGreaterThanOrEqual(70);
     expect(sl8?.hoursToTca).toBeLessThan(0);
     expect(kept.ranked.some((event) => event.other.noradId === 35933)).toBe(false);
+  });
+
+  it("keeps every dismissed SwissCube pass, including both Fengyun repeats", () => {
+    const fixture = loadFixtureSnapshot();
+    const events = eventsForNorad(fixture, 35932);
+    const result = rankConjunctions(events, 35932, new Date("2026-10-04T16:00:00.000Z"), 24 * 7, {
+      preservePastNorads: [19831],
+    });
+    const sum = result.dismissed.reduce((total, group) => total + group.count, 0);
+    expect(events).toHaveLength(21);
+    expect(result.ranked).toHaveLength(2);
+    expect(sum).toBe(19);
+    for (const group of result.dismissed) expect(group.examples).toHaveLength(group.count);
+
+    const low = result.dismissed.find((group) => group.reason === DISMISS.lowProbability);
+    expect(low?.count).toBe(16);
+    expect(low?.examples.every((example) => example.rangeKm > 2 && (example.maxProb ?? 1) < 1e-6)).toBe(true);
+
+    const duplicate = result.dismissed.find((group) => group.reason === DISMISS.duplicate);
+    expect(duplicate?.examples.map((example) => example.otherNorad)).toEqual([29842, 29842]);
+    expect(duplicate?.examples.every((example) => example.detail === "the same pair, 3 passes")).toBe(true);
   });
 });

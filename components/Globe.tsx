@@ -12,6 +12,16 @@ const CesiumGlobe = dynamic(() => import("./CesiumGlobe"), {
   ),
 });
 
-export function Globe({ event, evaluatedAt }: { event: RankedEvent | null; evaluatedAt: string | null }) {
-  return <CesiumGlobe event={event} evaluatedAt={evaluatedAt} />;
+export function Globe({
+  event,
+  evaluatedAt,
+  startedAt,
+  onDemoFlown,
+}: {
+  event: RankedEvent | null;
+  evaluatedAt: string | null;
+  startedAt: number | null;
+  onDemoFlown?: () => void;
+}) {
+  return <CesiumGlobe event={event} evaluatedAt={evaluatedAt} startedAt={startedAt} onDemoFlown={onDemoFlown} />;
 }
