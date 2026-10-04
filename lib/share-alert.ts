@@ -69,7 +69,7 @@ type ShareHost = {
   userAgent?: string;
 };
 
-function useWebShare(nav: ShareHost): boolean {
+function prefersWebShare(nav: ShareHost): boolean {
   if (typeof nav.share !== "function") return false;
   const ua = nav.userAgent ?? (typeof navigator !== "undefined" ? navigator.userAgent : "");
   return /Android|iPhone|iPad|iPod/i.test(ua);
@@ -80,7 +80,7 @@ export async function deliverShare(
   host?: ShareHost,
 ): Promise<"shared" | "copied" | "cancelled" | "failed"> {
   const nav = host ?? (typeof navigator === "undefined" ? undefined : navigator);
-  if (nav && useWebShare(nav)) {
+  if (nav && prefersWebShare(nav)) {
     try {
       await nav.share({ title: "Orbit Watch alert", text });
       return "shared";
