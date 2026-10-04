@@ -104,6 +104,25 @@ describe("createBriefing", () => {
     }
   });
 
+  it("returns the ranker text without calling xAI when only the local brief is needed", async () => {
+    const fetchImpl = vi.fn();
+    const briefing = await createBriefing({
+      norad: 35932,
+      timeZone: "America/New_York",
+      apiKey: "server-key",
+      localOnly: true,
+      toolOptions: { offline: true },
+      fetchImpl,
+    });
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(briefing.source).toBe("local");
+    expect(briefing.mock).toBe(false);
+    expect(briefing.message).toBeUndefined();
+    expect(briefing.text).toMatch(/SL-8 DEB/);
+    expect(briefing.text).toMatch(/621 meters/);
+    expect(briefing.text).toMatch(/tonight at 9:26 PM EDT/);
+  });
+
   it("falls back to the ranker text when grok fails, without retrying", async () => {
     const fetchImpl = vi.fn(async () => new Response("no", { status: 500 }));
     const briefing = await createBriefing({

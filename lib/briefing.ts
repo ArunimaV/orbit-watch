@@ -124,6 +124,8 @@ export async function createBriefing(input: {
   toolOptions?: VoiceToolOptions;
   apiKey?: string | null;
   fetchImpl?: typeof fetch;
+  /** Ranker text only, for the instant transcript placeholder. */
+  localOnly?: boolean;
 }): Promise<Briefing> {
   const norad = input.norad ?? DEMO_NORAD;
   const timeZone = input.timeZone?.trim() || "UTC";
@@ -131,12 +133,12 @@ export async function createBriefing(input: {
   const local = localBriefing(context, timeZone, input.encounterId);
   const apiKey = input.apiKey === undefined ? readXaiApiKey() : input.apiKey;
 
-  if (!apiKey) {
+  if (!apiKey || input.localOnly) {
     return {
       text: local,
       source: "local",
-      mock: true,
-      message: MISSING_KEY_MESSAGE,
+      mock: !apiKey,
+      message: apiKey ? undefined : MISSING_KEY_MESSAGE,
       norad,
       encounterId: input.encounterId ?? context.ranked[0]?.id ?? null,
     };
