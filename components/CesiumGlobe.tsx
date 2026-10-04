@@ -130,6 +130,31 @@ function EncounterCallout({
   return null;
 }
 
+const MIN_CAMERA_DISTANCE_M = 120_000;
+const MAX_CAMERA_DISTANCE_M = 32_000_000;
+
+function GlobeNavigation({ rootRef }: { rootRef: { current: HTMLElement | null } }) {
+  const { viewer } = useCesium();
+
+  useEffect(() => {
+    if (!viewer || viewer.isDestroyed()) return undefined;
+    const controller = viewer.scene.screenSpaceCameraController;
+    controller.minimumZoomDistance = MIN_CAMERA_DISTANCE_M;
+    controller.maximumZoomDistance = MAX_CAMERA_DISTANCE_M;
+    controller.enableCollisionDetection = true;
+    controller.zoomFactor = 1.15;
+    controller.inertiaZoom = 0.62;
+    const onWheel = (event: WheelEvent) => {
+      const root = rootRef.current;
+      controller.enableZoom = Boolean(root && event.target instanceof Node && root.contains(event.target));
+    };
+    window.addEventListener("wheel", onWheel, { capture: true, passive: true });
+    return () => window.removeEventListener("wheel", onWheel, { capture: true });
+  }, [viewer, rootRef]);
+
+  return null;
+}
+
 function IdleCamera() {
   const { viewer } = useCesium();
 
@@ -278,6 +303,7 @@ export default function CesiumGlobe({
   const [renderUrl, setRenderUrl] = useState<string | null>(null);
   const [renderPending, setRenderPending] = useState(false);
   const [tick, setTick] = useState<number | null>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
   const calloutHostRef = useRef<HTMLDivElement>(null);
   const calloutLabelRef = useRef<HTMLDivElement>(null);
   const calloutLineRef = useRef<SVGLineElement>(null);
@@ -402,7 +428,7 @@ export default function CesiumGlobe({
           {event ? `${event.ours.name} · ${event.other.name}` : "Natural Earth"}
         </span>
       </header>
-      <div className="relative min-h-0 flex-1">
+      <div ref={stageRef} className="relative min-h-0 flex-1 overflow-hidden">
         {baseLayer ? (
           <Viewer
             full
@@ -431,6 +457,7 @@ export default function CesiumGlobe({
                 onFlown={notifyFlown}
               />
             )}
+            <GlobeNavigation rootRef={stageRef} />
             <EncounterCallout
               position={tcaPosition}
               hostRef={calloutHostRef}
