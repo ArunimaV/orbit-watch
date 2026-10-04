@@ -46,3 +46,22 @@ body {
 .orbit-cesium .cesium-viewer-timelineContainer {
   display: none;
 }
+
+@keyframes orbit-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.orbit-fade-in {
+  animation: orbit-fade-in 0.45s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .orbit-fade-in {
+    animation: none;
+  }
+}
