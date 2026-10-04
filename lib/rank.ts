@@ -247,7 +247,7 @@ export function rankConjunctions(
   const addDismissed = (reason: string, example: DismissedExample) => {
     const group = dismissed.get(reason) ?? { reason, count: 0, examples: [] };
     group.count += 1;
-    if (group.examples.length < 3) group.examples.push(example);
+    group.examples.push(example);
     dismissed.set(reason, group);
   };
 

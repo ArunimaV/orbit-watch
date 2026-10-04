@@ -7,7 +7,7 @@ import { VerifyLink } from "@/components/VerifyLink";
 import { DEMO_ENCOUNTER_NORAD, DEMO_NORAD } from "@/lib/constants";
 import { formatApproachTime } from "@/lib/time-format";
 import { subscribeFocusEncounter } from "@/lib/focus";
-import type { DismissedGroup, RankedEvent, Tier } from "@/lib/types";
+import type { DismissedExample, DismissedGroup, RankedEvent, Tier } from "@/lib/types";
 
 interface ConjunctionsResponse {
   norad: number;
@@ -38,6 +38,67 @@ function formatRange(km: number): string {
 
 function formatScore(score: number): string {
   return score.toFixed(1);
+}
+
+function formatMaxProb(prob: number | null): string {
+  if (prob === null || !Number.isFinite(prob)) return "unknown";
+  return prob.toExponential(2);
+}
+
+const DISMISS_PREVIEW = 3;
+
+function DismissedGroupList({ group, now }: { group: DismissedGroup; now: string | null }) {
+  const [open, setOpen] = useState(false);
+  const expandable = group.examples.length > DISMISS_PREVIEW;
+  const shown = expandable && !open ? group.examples.slice(0, DISMISS_PREVIEW) : group.examples;
+  const coOrbit = /co-orbiting/i.test(group.reason);
+
+  return (
+    <li className="text-xs leading-snug text-muted">
+      <span className="text-foreground">{group.reason}</span>
+      <span className="font-mono"> · {group.count}</span>
+      {shown.length > 0 && (
+        <ul className="mt-1 flex flex-col gap-1">
+          {shown.map((example) => (
+            <DismissedRow key={example.id} example={example} now={now} coOrbit={coOrbit} />
+          ))}
+        </ul>
+      )}
+      {expandable && (
+        <button
+          type="button"
+          className="mt-1 text-[10px] tracking-[0.14em] text-muted uppercase hover:text-foreground"
+          aria-expanded={open}
+          onClick={() => setOpen((value) => !value)}
+        >
+          {open ? "Show less" : `Show all ${group.count}`}
+        </button>
+      )}
+    </li>
+  );
+}
+
+function DismissedRow({
+  example,
+  now,
+  coOrbit,
+}: {
+  example: DismissedExample;
+  now: string | null;
+  coOrbit: boolean;
+}) {
+  const reasonStat = coOrbit
+    ? `${example.relSpeedKms.toFixed(3)} km/s`
+    : `${formatRange(example.rangeKm)} · ${formatMaxProb(example.maxProb)}`;
+  return (
+    <li>
+      <span className="text-foreground">{example.otherName}</span>
+      <span className="ml-1 font-mono text-[10px] text-muted">{example.otherNorad}</span>
+      {example.detail ? ` (${example.detail})` : ""}
+      {now && <TcaTime iso={example.tca} nowIso={now} />}
+      <span className="block font-mono text-[10px] text-muted">{reasonStat}</span>
+    </li>
+  );
 }
 
 export function WarningList({
@@ -188,21 +249,7 @@ export function WarningList({
               ) : (
                 <ul className="mt-2 flex flex-col gap-1.5">
                   {data.dismissed.map((group) => (
-                    <li key={group.reason} className="text-xs leading-snug text-muted">
-                      <span className="text-foreground">{group.reason}</span>
-                      <span className="font-mono"> · {group.count}</span>
-                      {group.examples.length > 0 && (
-                        <ul className="mt-1 flex flex-col gap-1">
-                          {group.examples.map((example) => (
-                            <li key={example.id}>
-                              <span className="text-foreground">{example.otherName}</span>
-                              {example.detail ? ` (${example.detail})` : ""}
-                              {data.now && <TcaTime iso={example.tca} nowIso={data.now} />}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </li>
+                    <DismissedGroupList key={group.reason} group={group} now={data.now} />
                   ))}
                 </ul>
               )}
