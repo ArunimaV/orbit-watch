@@ -5,8 +5,8 @@ export const OURS_ORBIT_COLOR = "#79d6cb";
 export const DISMISSED_ORBIT_COLOR = "#8aa3b2";
 export const OURS_ORBIT_WIDTH = 4.5;
 export const THREAT_ORBIT_WIDTH = 2.25;
-export const DISMISSED_ORBIT_WIDTH = 1;
-export const DISMISSED_ORBIT_ALPHA = 0.4;
+export const DISMISSED_ORBIT_WIDTH = 1.5;
+export const DISMISSED_ORBIT_ALPHA = 0.55;
 export const ORBIT_FETCH_CONCURRENCY = 4;
 
 const ACT_COLOR = "#ff5d6c";

@@ -257,12 +257,6 @@ function EncounterScene({
   flyToken,
   otherColor,
   context,
-  frameRef,
-  keptSettledRef,
-  keptPositionsRef,
-  framedKeptRef,
-  userAdjustedRef,
-  expectKept,
   onFlown,
 }: {
   ours: TrackSample[];
@@ -272,12 +266,6 @@ function EncounterScene({
   flyToken: number;
   otherColor: string;
   context: LoadedOrbit[];
-  frameRef: { current: Cartesian3[] };
-  keptSettledRef: { current: boolean };
-  keptPositionsRef: { current: Cartesian3[] };
-  framedKeptRef: { current: boolean };
-  userAdjustedRef: { current: boolean };
-  expectKept: boolean;
   onFlown?: () => void;
 }) {
   const { viewer } = useCesium();
@@ -335,30 +323,15 @@ function EncounterScene({
         })
       : null;
 
-    const started = Date.now();
-    let flyAttempt = 0;
-    const scheduleFly = () => {
-      if (scene.isDestroyed()) return;
-      const waited = Date.now() - started;
-      if (expectKept && !keptSettledRef.current && waited < 1000) {
-        flyAttempt = window.setTimeout(scheduleFly, 80);
-        return;
-      }
-      if (userAdjustedRef.current) return;
-      const framed = frameRef.current.length >= 2 ? frameRef.current : [...oursPositions, ...otherPositions];
-      if (keptPositionsRef.current.length > 0) framedKeptRef.current = true;
-      flyToTracks(scene.camera, framed, 1.8, () => onFlownRef.current?.());
-    };
-    scheduleFly();
+    flyToTracks(scene.camera, [...oursPositions, ...otherPositions], 1.8, () => onFlownRef.current?.());
     const flownBackup = window.setTimeout(() => onFlownRef.current?.(), 2200);
 
     return () => {
-      window.clearTimeout(flyAttempt);
       window.clearTimeout(flownBackup);
       dots.current = { ours: null, other: null };
       if (!scene.isDestroyed()) scene.entities.removeAll();
     };
-  }, [viewer, ours, other, tcaIndex, flyToken, otherColor, expectKept, frameRef, keptSettledRef, keptPositionsRef, framedKeptRef, userAdjustedRef]);
+  }, [viewer, ours, other, tcaIndex, flyToken, otherColor]);
 
   useEffect(() => {
     if (!viewer || viewer.isDestroyed()) return undefined;
@@ -383,7 +356,7 @@ function EncounterScene({
       if (viewer.isDestroyed()) return;
       for (const entity of added) viewer.entities.remove(entity);
     };
-  }, [viewer, context, ours, other, tcaIndex, flyToken, otherColor, expectKept]);
+  }, [viewer, context, ours, other, tcaIndex, flyToken, otherColor]);
 
   useEffect(() => {
     const oursSample = ours[Math.min(index, ours.length - 1)];
@@ -438,20 +411,6 @@ export default function CesiumGlobe({
     camera: Parameters<typeof flyToTracks>[0];
   } | null>(null);
   const tracksRef = useRef<Cartesian3[]>([]);
-  const frameRef = useRef<Cartesian3[]>([]);
-  const selectedPositionsRef = useRef<Cartesian3[]>([]);
-  const keptPositionsRef = useRef<Cartesian3[]>([]);
-  const keptSettledRef = useRef(false);
-  const framedKeptRef = useRef(false);
-  const userAdjustedRef = useRef(false);
-  const boardKeyRef = useRef<string | null>(null);
-  if (boardKeyRef.current !== boardKey) {
-    boardKeyRef.current = boardKey;
-    keptSettledRef.current = false;
-    keptPositionsRef.current = [];
-    framedKeptRef.current = false;
-    userAdjustedRef.current = false;
-  }
   const hintGoneRef = useRef(false);
   const [showHint, setShowHint] = useState(true);
   const [hintVisible, setHintVisible] = useState(true);
@@ -541,20 +500,13 @@ export default function CesiumGlobe({
   useEffect(() => {
     const requests = contextOrbitRequests(board?.ranked ?? [], event?.id ?? null);
     if (requests.length === 0) {
-      keptPositionsRef.current = [];
-      keptSettledRef.current = true;
-      frameRef.current = selectedPositionsRef.current;
       setKeptOrbits([]);
       return undefined;
     }
     const controller = new AbortController();
     let cancelled = false;
     void loadOrbitTracks(requests, controller.signal).then((loaded) => {
-      if (cancelled) return;
-      keptPositionsRef.current = loaded.flatMap((orbit) => [...orbit.ours, ...orbit.other].map(toCartesian));
-      keptSettledRef.current = true;
-      frameRef.current = [...selectedPositionsRef.current, ...keptPositionsRef.current];
-      setKeptOrbits(loaded);
+      if (!cancelled) setKeptOrbits(loaded);
     });
     return () => {
       cancelled = true;
@@ -579,14 +531,6 @@ export default function CesiumGlobe({
       controller.abort();
     };
   }, [showDismissed, board]);
-
-  useEffect(() => {
-    if (keptOrbits.length === 0 || framedKeptRef.current || userAdjustedRef.current) return;
-    const viewer = viewerRef.current;
-    if (!viewer || viewer.isDestroyed()) return;
-    framedKeptRef.current = true;
-    flyToTracks(viewer.camera, frameRef.current, 1.2);
-  }, [keptOrbits]);
 
   useEffect(() => {
     if (!playing || !encounter) return undefined;
@@ -620,7 +564,6 @@ export default function CesiumGlobe({
   }, []);
 
   function dismissHint() {
-    userAdjustedRef.current = true;
     if (hintGoneRef.current) return;
     hintGoneRef.current = true;
     setHintVisible(false);
@@ -635,17 +578,13 @@ export default function CesiumGlobe({
           countdownClockMs(Date.parse(event.tca), tick, Date.parse(evaluatedAt), tick - startedAt),
         )
       : "";
-  const selectedPositions = encounter
+  tracksRef.current = encounter
     ? [...encounter.tracks.ours, ...encounter.tracks.other].map(toCartesian)
     : [];
-  selectedPositionsRef.current = selectedPositions;
-  frameRef.current = [...selectedPositions, ...keptPositionsRef.current];
-  tracksRef.current = frameRef.current;
   const contextOrbits = useMemo(
     () => (showDismissed ? [...keptOrbits, ...dismissedOrbits] : keptOrbits),
     [showDismissed, keptOrbits, dismissedOrbits],
   );
-  const expectKept = contextOrbitRequests(board?.ranked ?? [], event?.id ?? null).length > 0;
   const otherColor = event ? threatOrbitColor(event.tier) : "#ff5d6c";
   const legendThreats = (board?.ranked ?? (event ? [event] : [])).slice(0, 4);
   const hiddenThreats = (board?.ranked.length ?? 0) - legendThreats.length;
@@ -697,12 +636,6 @@ export default function CesiumGlobe({
                 flyToken={flyToken}
                 otherColor={otherColor}
                 context={contextOrbits}
-                frameRef={frameRef}
-                keptSettledRef={keptSettledRef}
-                keptPositionsRef={keptPositionsRef}
-                framedKeptRef={framedKeptRef}
-                userAdjustedRef={userAdjustedRef}
-                expectKept={expectKept}
                 onFlown={notifyFlown}
               />
             )}
