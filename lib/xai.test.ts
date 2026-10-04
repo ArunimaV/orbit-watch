@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { GET as getTts, POST as postTts } from "@/app/api/tts/route";
 import { POST } from "@/app/api/voice/token/route";
 import { extractResponseText, mintRealtimeClientSecret, requestSpeech } from "./xai";
 import { CLIENT_SECRET_URL, TTS_URL } from "./xai-config";
@@ -82,12 +83,13 @@ describe("POST /api/voice/token", () => {
 });
 
 describe("requestSpeech", () => {
-  it("posts Eve English text and returns mpeg bytes", async () => {
+  it("posts Eve English text and returns the upstream mpeg stream", async () => {
     const bytes = new Uint8Array([0xff, 0xfb, 0x90, 0x00, 1, 2, 3, 4]);
-    const fetchImpl = vi.fn(async () => new Response(bytes, { status: 200, headers: { "content-type": "audio/mpeg" } }));
+    const upstream = new Response(bytes, { status: 200, headers: { "content-type": "audio/mpeg" } });
+    const fetchImpl = vi.fn(async () => upstream);
     const result = await requestSpeech("Hold at 621 meters.", { apiKey: "server-key", fetchImpl });
     expect(result.ok).toBe(true);
-    if (result.ok) expect(Array.from(result.audio.slice(0, 2))).toEqual([0xff, 0xfb]);
+    if (result.ok) expect(result.body).toBe(upstream.body);
     const [url, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
     expect(url).toBe(TTS_URL);
     expect(JSON.parse(String(init.body))).toEqual({
@@ -95,6 +97,33 @@ describe("requestSpeech", () => {
       voice_id: "eve",
       language: "en",
     });
+  });
+});
+
+describe("/api/tts", () => {
+  it("streams the upstream body on GET and POST", async () => {
+    process.env.XAI_API_KEY = "server-key";
+    const bytes = new Uint8Array([0xff, 0xfb, 0x90, 0x00, 1, 2, 3, 4]);
+    const upstream = new Response(bytes, { status: 200, headers: { "content-type": "audio/mpeg" } });
+    vi.stubGlobal("fetch", vi.fn(async () => upstream));
+
+    const streamed = await getTts(new Request("http://localhost/api/tts?text=Hold%20at%20621%20meters."));
+    expect(streamed.status).toBe(200);
+    expect(streamed.headers.get("content-type")).toContain("audio/mpeg");
+    expect(streamed.headers.get("cache-control")).toBe("no-store");
+    expect(streamed.body).toBe(upstream.body);
+
+    const again = new Response(bytes, { status: 200, headers: { "content-type": "audio/mpeg" } });
+    vi.stubGlobal("fetch", vi.fn(async () => again));
+    const posted = await postTts(
+      new Request("http://localhost/api/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: "Hold at 621 meters." }),
+      }),
+    );
+    expect(posted.status).toBe(200);
+    expect(posted.body).toBe(again.body);
   });
 });
 
