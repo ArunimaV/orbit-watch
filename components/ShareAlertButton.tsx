@@ -23,7 +23,7 @@ export function ShareAlertButton({ text }: { text: string }) {
             if (copiedNow) setCopied(true);
           });
         }}
-        className="text-[10px] tracking-wide text-muted uppercase hover:text-accent"
+        className="shrink-0 text-[10px] tracking-wide text-muted uppercase hover:text-accent"
       >
         Share
       </button>
@@ -54,7 +54,11 @@ async function shareAlert(text: string): Promise<boolean> {
       if (error instanceof DOMException && error.name === "AbortError") return false;
     }
   }
-  await copyText(text);
+  try {
+    await copyText(text);
+  } catch {
+    return false;
+  }
   return true;
 }
 
