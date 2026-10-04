@@ -9,12 +9,14 @@ export interface SpacetimeConfig {
   module: string;
 }
 
-/** Both public env vars are required. Either one missing leaves the mission room off. */
-export function spacetimeConfig(
-  env: Record<string, string | undefined> = process.env,
-): SpacetimeConfig | null {
-  const uri = env.NEXT_PUBLIC_SPACETIME_URI?.trim();
-  const moduleName = env.NEXT_PUBLIC_SPACETIME_MODULE?.trim();
+/**
+ * Both public env vars are required. Either one missing leaves the mission room off.
+ * Read them as direct `process.env.NEXT_PUBLIC_*` references so Next can inline them
+ * into the browser bundle. A dynamic lookup of `process.env` stays empty on the client.
+ */
+export function spacetimeConfig(env?: { uri?: string; module?: string }): SpacetimeConfig | null {
+  const uri = (env ? env.uri : process.env.NEXT_PUBLIC_SPACETIME_URI)?.trim();
+  const moduleName = (env ? env.module : process.env.NEXT_PUBLIC_SPACETIME_MODULE)?.trim();
   if (!uri || !moduleName) return null;
   return { uri, module: moduleName };
 }

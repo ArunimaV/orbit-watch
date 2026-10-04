@@ -1,19 +1,15 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { grokAlertFeedLine, grokBriefFeedLine, spacetimeConfig } from "./mission-room";
 
 describe("spacetimeConfig", () => {
-  afterEach(() => {
-    vi.unstubAllEnvs();
-  });
-
   it("stays off unless both public env vars are set", () => {
-    expect(spacetimeConfig({})).toBeNull();
-    expect(spacetimeConfig({ NEXT_PUBLIC_SPACETIME_URI: "http://127.0.0.1:3100" })).toBeNull();
-    expect(spacetimeConfig({ NEXT_PUBLIC_SPACETIME_MODULE: "orbit-watch" })).toBeNull();
+    expect(spacetimeConfig({ uri: "", module: "" })).toBeNull();
+    expect(spacetimeConfig({ uri: "http://127.0.0.1:3100" })).toBeNull();
+    expect(spacetimeConfig({ module: "orbit-watch" })).toBeNull();
     expect(
       spacetimeConfig({
-        NEXT_PUBLIC_SPACETIME_URI: "  http://127.0.0.1:3100  ",
-        NEXT_PUBLIC_SPACETIME_MODULE: " orbit-watch ",
+        uri: "  http://127.0.0.1:3100  ",
+        module: " orbit-watch ",
       }),
     ).toEqual({ uri: "http://127.0.0.1:3100", module: "orbit-watch" });
   });
