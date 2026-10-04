@@ -8,7 +8,7 @@ export function ShareAlertButton({ text }: { text: string }) {
 
   useEffect(() => {
     if (!copied) return undefined;
-    const timer = window.setTimeout(() => setCopied(false), 2400);
+    const timer = window.setTimeout(() => setCopied(false), 2800);
     return () => window.clearTimeout(timer);
   }, [copied]);
 
@@ -31,7 +31,7 @@ export function ShareAlertButton({ text }: { text: string }) {
         createPortal(
           <p
             role="status"
-            className="pointer-events-none fixed top-20 left-1/2 z-[80] -translate-x-1/2 rounded border border-accent bg-background px-4 py-2 text-sm font-medium tracking-wide text-accent shadow-lg"
+            className="pointer-events-none fixed bottom-16 left-4 z-[80] rounded-md border-2 border-accent bg-background px-5 py-3 text-base font-semibold tracking-wide text-accent shadow-lg"
           >
             Copied!
           </p>,
