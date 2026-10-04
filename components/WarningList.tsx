@@ -2,10 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Countdown } from "@/components/Countdown";
+import { ShareAlertButton } from "@/components/ShareAlertButton";
 import { TcaTime } from "@/components/TcaTime";
 import { VerifyLink } from "@/components/VerifyLink";
 import { DEMO_ENCOUNTER_NORAD, DEMO_NORAD } from "@/lib/constants";
 import { formatApproachTime } from "@/lib/time-format";
+import { shareAlertText } from "@/lib/share-alert";
 import { subscribeFocusEncounter } from "@/lib/focus";
 import type { DismissedExample, DismissedGroup, RankedEvent, Tier } from "@/lib/types";
 
@@ -114,7 +116,12 @@ export function WarningList({
   onNorad?: (norad: number) => void;
   onEvaluated?: (nowIso: string) => void;
   startedAt: number | null;
-  onThreat?: (threat: { count: number; satelliteName: string; when: string | null }) => void;
+  onThreat?: (threat: {
+    count: number;
+    satelliteName: string;
+    when: string | null;
+    lead: RankedEvent | null;
+  }) => void;
 }) {
   const [draft, setDraft] = useState(String(DEMO_NORAD));
   const [norad, setNorad] = useState(String(DEMO_NORAD));
@@ -157,6 +164,7 @@ export function WarningList({
           count: acts.length,
           satelliteName: body.satelliteName,
           when,
+          lead: acts[0] ?? null,
         });
         onNorad?.(body.norad);
         const stillSelected = body.ranked.some((item) => item.id === selectedIdRef.current);
@@ -323,7 +331,14 @@ export function WarningList({
                   <p className="mt-1 text-[11px] text-muted">Not from SOCRATES: {event.syntheticFields.join(", ")}</p>
                 )}
                 </button>
-                <div className="mt-1.5 flex justify-end">
+                <div className="mt-1.5 flex items-center justify-end gap-3">
+                  <ShareAlertButton
+                    text={shareAlertText({
+                      satelliteName: data.satelliteName,
+                      event,
+                      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+                    })}
+                  />
                   <VerifyLink norad={event.ours.noradId} />
                 </div>
               </article>
