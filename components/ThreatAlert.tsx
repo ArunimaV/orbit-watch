@@ -1,7 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { ShareAlertButton } from "@/components/ShareAlertButton";
+import { useVoicePreference } from "@/components/VoicePreference";
 import { threatHeadline } from "@/lib/countdown";
+import { shareAlertText } from "@/lib/share-alert";
+import { bindSpeechStop, readVoiceEnabled } from "@/lib/voice-preference";
+import type { RankedEvent } from "@/lib/types";
 
 const SESSION_KEY = "orbit-watch-alert";
 
@@ -10,15 +15,18 @@ export function ThreatAlert({
   count,
   satelliteName,
   when,
+  lead,
 }: {
   armed: boolean;
   count: number;
   satelliteName: string;
   when: string | null;
+  lead: RankedEvent | null;
 }) {
   const [visible, setVisible] = useState(false);
   const [playable, setPlayable] = useState(false);
   const [played, setPlayed] = useState(false);
+  const { enabled: voiceEnabled } = useVoicePreference();
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const replayRef = useRef<(() => Promise<void>) | null>(null);
   const headline = threatHeadline(count, satelliteName, when);
@@ -57,6 +65,14 @@ export function ThreatAlert({
     };
   }, [armed, count]);
 
+  useEffect(
+    () =>
+      bindSpeechStop(() => {
+        audioRef.current?.pause();
+      }),
+    [],
+  );
+
   if (!visible) return null;
 
   return (
@@ -66,11 +82,21 @@ export function ThreatAlert({
         className="pointer-events-auto orbit-fade-in flex max-w-md items-center gap-2 rounded border border-act/40 bg-panel/90 px-3 py-1.5 shadow-sm"
       >
         <p className="text-xs leading-snug text-foreground">{headline}</p>
-        {playable && (
+        {lead && (
+          <ShareAlertButton
+            text={shareAlertText({
+              satelliteName,
+              event: lead,
+              timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+            })}
+          />
+        )}
+        {playable && voiceEnabled && (
           <button
             type="button"
             className="shrink-0 text-[10px] tracking-wide text-accent uppercase"
             onClick={() => {
+              if (!readVoiceEnabled()) return;
               const replay = replayRef.current;
               if (!replay) return;
               void replay().then(() => setPlayed(true)).catch(() => setPlayable(true));
@@ -134,6 +160,7 @@ async function speakAlert(
   callbacks: { showButton: () => void; markPlayed: () => void },
   autoplay: boolean,
 ) {
+  if (!readVoiceEnabled()) return;
   try {
     const response = await fetch("/api/tts", {
       method: "POST",
@@ -149,9 +176,16 @@ async function speakAlert(
         releaseAudio(audioRef);
         audioRef.current = audio;
         replayRef.current = async () => {
+          if (!readVoiceEnabled()) return;
           audio.currentTime = 0;
           await audio.play();
         };
+        if (!readVoiceEnabled()) {
+          audio.pause();
+          releaseAudio(audioRef);
+          replayRef.current = null;
+          return;
+        }
         if (!autoplay) {
           callbacks.showButton();
           return;
