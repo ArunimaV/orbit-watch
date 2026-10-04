@@ -287,6 +287,11 @@ export function WarningList({
                     {event.tier}
                   </span>
                 </div>
+                {data.now && startedAt !== null && (
+                  <p className="mt-1 font-mono text-sm text-foreground">
+                    <Countdown tca={event.tca} evaluatedAt={data.now} startedAt={startedAt} />
+                  </p>
+                )}
                 <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 font-mono text-[12px] text-foreground">
                   <div>
                     <dt className="text-[10px] tracking-wide text-muted uppercase">Score</dt>
@@ -318,12 +323,7 @@ export function WarningList({
                   <p className="mt-1 text-[11px] text-muted">Not from SOCRATES: {event.syntheticFields.join(", ")}</p>
                 )}
                 </button>
-                <div className="mt-1.5 flex items-center justify-between gap-2">
-                  {data.now && startedAt !== null ? (
-                    <Countdown tca={event.tca} evaluatedAt={data.now} startedAt={startedAt} />
-                  ) : (
-                    <span />
-                  )}
+                <div className="mt-1.5 flex justify-end">
                   <VerifyLink norad={event.ours.noradId} />
                 </div>
               </article>
