@@ -304,6 +304,9 @@ export default function CesiumGlobe({
   const [renderPending, setRenderPending] = useState(false);
   const [tick, setTick] = useState<number | null>(null);
   const stageRef = useRef<HTMLDivElement>(null);
+  const hintGoneRef = useRef(false);
+  const [showHint, setShowHint] = useState(true);
+  const [hintVisible, setHintVisible] = useState(true);
   const calloutHostRef = useRef<HTMLDivElement>(null);
   const calloutLabelRef = useRef<HTMLDivElement>(null);
   const calloutLineRef = useRef<SVGLineElement>(null);
@@ -405,6 +408,25 @@ export default function CesiumGlobe({
     return () => window.clearInterval(id);
   }, []);
 
+  useEffect(() => {
+    const fade = window.setTimeout(() => {
+      hintGoneRef.current = true;
+      setHintVisible(false);
+    }, 3600);
+    const hide = window.setTimeout(() => setShowHint(false), 4300);
+    return () => {
+      window.clearTimeout(fade);
+      window.clearTimeout(hide);
+    };
+  }, []);
+
+  function dismissHint() {
+    if (hintGoneRef.current) return;
+    hintGoneRef.current = true;
+    setHintVisible(false);
+    window.setTimeout(() => setShowHint(false), 400);
+  }
+
   const approach = approachFor(event, evaluatedAt);
   const remaining =
     event && evaluatedAt && tick !== null && startedAt !== null
@@ -428,7 +450,12 @@ export default function CesiumGlobe({
           {event ? `${event.ours.name} · ${event.other.name}` : "Natural Earth"}
         </span>
       </header>
-      <div ref={stageRef} className="relative min-h-0 flex-1 overflow-hidden">
+      <div
+        ref={stageRef}
+        className="relative min-h-0 flex-1 overflow-hidden"
+        onPointerDown={dismissHint}
+        onWheel={dismissHint}
+      >
         {baseLayer ? (
           <Viewer
             full
@@ -487,6 +514,15 @@ export default function CesiumGlobe({
             </div>
           )}
         </div>
+        {showHint && (
+          <p
+            className={`pointer-events-none absolute bottom-16 left-1/2 z-[2] -translate-x-1/2 rounded bg-background/80 px-2 py-1 text-[11px] whitespace-nowrap text-muted transition-opacity duration-500 ${
+              hintVisible ? "opacity-100" : "opacity-0"
+            }`}
+          >
+            Drag to rotate · Scroll to zoom
+          </p>
+        )}
         <div className="pointer-events-none absolute top-3 left-3 z-[2] flex flex-col gap-1 text-[11px]">
           <span className="text-accent">cyan · ours</span>
           <span className="text-act">red · other object</span>
