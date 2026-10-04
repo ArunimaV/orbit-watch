@@ -18,6 +18,8 @@ const eslintConfig = [
       "out/**",
       "build/**",
       "next-env.d.ts",
+      "spacetime/**",
+      "lib/spacetime/module_bindings/**",
     ],
   },
 ];

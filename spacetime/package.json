@@ -1,0 +1,17 @@
+{
+  "name": "orbit-watch-spacetime",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Live mission-room module for Orbit Watch. SpacetimeDB is the shared ops database.",
+  "scripts": {
+    "build": "spacetime build",
+    "publish": "spacetime publish"
+  },
+  "dependencies": {
+    "spacetimedb": "2.10.2"
+  },
+  "devDependencies": {
+    "typescript": "~5.6.2"
+  }
+}
