@@ -135,7 +135,8 @@ export function WarningList({
   const onThreatRef = useRef(onThreat);
   onThreatRef.current = onThreat;
 
-  function applyBody(body: ConjunctionsResponse) {
+  const applyRef = useRef<(body: ConjunctionsResponse) => void>(() => {});
+  applyRef.current = (body) => {
     setData(body);
     setError(null);
     setLookupNote(null);
@@ -158,7 +159,7 @@ export function WarningList({
           : undefined;
       onSelect(prefer ?? body.ranked[0] ?? null);
     }
-  }
+  };
 
   useEffect(() => {
     if (norad !== String(DEMO_NORAD)) return undefined;
@@ -177,7 +178,7 @@ export function WarningList({
         return body;
       })
       .then((body) => {
-        applyBody(body);
+        applyRef.current(body);
       })
       .catch((cause: unknown) => {
         if (cause instanceof DOMException && cause.name === "AbortError") return;
@@ -204,7 +205,7 @@ export function WarningList({
           setLookupNote(body.message ?? "Couldn't load close approaches for that CubeSat. The list on screen is unchanged.");
           return;
         }
-        applyBody(body);
+        applyRef.current(body);
       })
       .catch((cause: unknown) => {
         if (cause instanceof DOMException && cause.name === "AbortError") return;
@@ -237,7 +238,7 @@ export function WarningList({
         setLookupNote(body.message ?? "Couldn't load close approaches for that CubeSat. The list on screen is unchanged.");
         return;
       }
-      applyBody(body);
+      applyRef.current(body);
       setDraft(String(id));
       setNorad(String(id));
     } catch {
