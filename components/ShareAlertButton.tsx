@@ -8,7 +8,7 @@ export function ShareAlertButton({ text }: { text: string }) {
 
   useEffect(() => {
     if (!copied) return undefined;
-    const timer = window.setTimeout(() => setCopied(false), 1600);
+    const timer = window.setTimeout(() => setCopied(false), 2400);
     return () => window.clearTimeout(timer);
   }, [copied]);
 
@@ -31,7 +31,7 @@ export function ShareAlertButton({ text }: { text: string }) {
         createPortal(
           <p
             role="status"
-            className="pointer-events-none fixed bottom-14 left-1/2 z-[60] -translate-x-1/2 rounded border border-accent/50 bg-panel px-3 py-1.5 text-xs tracking-wide text-foreground shadow-lg"
+            className="pointer-events-none fixed top-20 left-1/2 z-[80] -translate-x-1/2 rounded border border-accent bg-background px-4 py-2 text-sm font-medium tracking-wide text-accent shadow-lg"
           >
             Copied!
           </p>,
@@ -41,15 +41,19 @@ export function ShareAlertButton({ text }: { text: string }) {
   );
 }
 
+function shouldUseWebShare(payload: ShareData): boolean {
+  if (typeof navigator.share !== "function") return false;
+  const coarsePointer = window.matchMedia("(pointer: coarse)").matches;
+  if (!coarsePointer || navigator.maxTouchPoints < 1) return false;
+  return typeof navigator.canShare !== "function" || navigator.canShare(payload);
+}
+
 async function shareAlert(text: string): Promise<boolean> {
-  const payload = { title: "Orbit Watch alert", text };
-  if (typeof navigator.share === "function") {
+  const payload: ShareData = { title: "Orbit Watch alert", text };
+  if (shouldUseWebShare(payload)) {
     try {
-      const allowed = typeof navigator.canShare !== "function" || navigator.canShare(payload);
-      if (allowed) {
-        await navigator.share(payload);
-        return false;
-      }
+      await navigator.share(payload);
+      return false;
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return false;
     }
