@@ -21,6 +21,7 @@ import {
   type Entity,
 } from "cesium";
 import { useCesium, Viewer } from "resium";
+import { formatCountdown, countdownClockMs } from "@/lib/countdown";
 import type { TrackSample } from "@/lib/encounter";
 import { subscribeFocusEncounter } from "@/lib/focus";
 import { formatApproachTime } from "@/lib/time-format";
@@ -85,14 +86,14 @@ function EncounterScene({
   other,
   index,
   tcaIndex,
-  label,
+  labelRef,
   flyToken,
 }: {
   ours: TrackSample[];
   other: TrackSample[];
   index: number;
   tcaIndex: number;
-  label: string;
+  labelRef: { current: string };
   flyToken: number;
 }) {
   const { viewer } = useCesium();
@@ -136,7 +137,7 @@ function EncounterScene({
           disableDepthTestDistance: Number.POSITIVE_INFINITY,
         },
         label: {
-          text: label,
+          text: new CallbackProperty(() => labelRef.current, false),
           font: "bold 16px sans-serif",
           pixelOffset: new Cartesian2(0, -36),
           fillColor: Color.WHITE,
@@ -184,7 +185,7 @@ function EncounterScene({
       dots.current = { ours: null, other: null };
       if (!scene.isDestroyed()) scene.entities.removeAll();
     };
-  }, [viewer, ours, other, tcaIndex, label, flyToken]);
+  }, [viewer, ours, other, tcaIndex, flyToken, labelRef]);
 
   useEffect(() => {
     const oursSample = ours[Math.min(index, ours.length - 1)];
@@ -203,9 +204,11 @@ function EncounterScene({
 export default function CesiumGlobe({
   event,
   evaluatedAt,
+  startedAt,
 }: {
   event: RankedEvent | null;
   evaluatedAt: string | null;
+  startedAt: number | null;
 }) {
   const [baseLayer, setBaseLayer] = useState<ImageryLayer | null>(null);
   const [encounter, setEncounter] = useState<EncounterPayload | null>(null);
@@ -216,6 +219,8 @@ export default function CesiumGlobe({
   const [flyToken, setFlyToken] = useState(0);
   const [renderUrl, setRenderUrl] = useState<string | null>(null);
   const [renderPending, setRenderPending] = useState(false);
+  const [tick, setTick] = useState<number | null>(null);
+  const labelRef = useRef("");
   const terrainProvider = useMemo(() => new EllipsoidTerrainProvider(), []);
 
   useEffect(() => {
@@ -306,12 +311,26 @@ export default function CesiumGlobe({
   const sampleCount = encounter?.tracks.ours.length ?? 0;
   const currentTime = encounter?.tracks.ours[index]?.t;
   const tcaIndex = encounter ? nearestSampleIndex(encounter.tracks.ours, encounter.tca) : 0;
+  useEffect(() => {
+    const id = window.setInterval(() => setTick(Date.now()), 1000);
+    setTick(Date.now());
+    return () => window.clearInterval(id);
+  }, []);
+
   const approach = approachFor(event, evaluatedAt);
+  const remaining =
+    event && evaluatedAt && tick !== null && startedAt !== null
+      ? formatCountdown(
+          Date.parse(event.tca),
+          countdownClockMs(Date.parse(event.tca), tick, Date.parse(evaluatedAt), tick - startedAt),
+        )
+      : "";
   const label = event
     ? `${event.other.name}\n${formatRange(event.rangeKm)} · ${event.relSpeedKms.toFixed(3)} km/s${
         approach ? `\n${approach.label}` : ""
-      }`
+      }${remaining ? `\n${remaining}` : ""}`
     : "";
+  labelRef.current = label;
 
   return (
     <section className="relative flex h-full min-h-[320px] flex-col border-edge bg-panel md:border-x">
@@ -346,7 +365,7 @@ export default function CesiumGlobe({
                 other={encounter.tracks.other}
                 index={index}
                 tcaIndex={tcaIndex}
-                label={label}
+                labelRef={labelRef}
                 flyToken={flyToken}
               />
             )}
@@ -370,6 +389,7 @@ export default function CesiumGlobe({
               <span className="block">
                 {formatRange(event.rangeKm)} · {event.relSpeedKms.toFixed(3)} km/s
               </span>
+              {remaining && <span className="block text-accent">{remaining}</span>}
             </span>
           )}
         </div>

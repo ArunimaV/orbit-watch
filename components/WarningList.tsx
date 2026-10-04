@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Countdown } from "@/components/Countdown";
 import { TcaTime } from "@/components/TcaTime";
 import { DEMO_ENCOUNTER_NORAD, DEMO_NORAD } from "@/lib/constants";
 import { subscribeFocusEncounter } from "@/lib/focus";
@@ -42,11 +43,13 @@ export function WarningList({
   onSelect,
   onNorad,
   onEvaluated,
+  startedAt,
 }: {
   selectedId: string | null;
   onSelect: (event: RankedEvent | null) => void;
   onNorad?: (norad: number) => void;
   onEvaluated?: (nowIso: string) => void;
+  startedAt: number | null;
 }) {
   const [draft, setDraft] = useState(String(DEMO_NORAD));
   const [norad, setNorad] = useState(String(DEMO_NORAD));
@@ -254,6 +257,11 @@ export function WarningList({
                   <p className="mt-1 text-[11px] text-muted">Not from SOCRATES: {event.syntheticFields.join(", ")}</p>
                 )}
                 </button>
+                {data.now && startedAt !== null && (
+                  <div className="mt-2">
+                    <Countdown tca={event.tca} evaluatedAt={data.now} startedAt={startedAt} />
+                  </div>
+                )}
               </article>
             ))}
           </div>
