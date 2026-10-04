@@ -27,10 +27,11 @@ export function ThreatAlert({
     if (!armed || count < 1) return undefined;
     let cancelled = false;
     const timer = window.setTimeout(() => {
-      if (cancelled || sessionStorage.getItem(SESSION_KEY)) return;
-      sessionStorage.setItem(SESSION_KEY, "1");
+      if (cancelled) return;
       setVisible(true);
-      void speakAlert(headlineRef.current, audioRef, setPlayable);
+      const alreadySpoken = sessionStorage.getItem(SESSION_KEY) === "1";
+      if (!alreadySpoken) sessionStorage.setItem(SESSION_KEY, "1");
+      void speakAlert(headlineRef.current, audioRef, setPlayable, !alreadySpoken);
     }, 400);
     return () => {
       cancelled = true;
@@ -74,6 +75,7 @@ async function speakAlert(
   text: string,
   audioRef: { current: HTMLAudioElement | null },
   setPlayable: (value: boolean) => void,
+  autoplay: boolean,
 ) {
   try {
     const response = await fetch("/api/tts", {
@@ -88,6 +90,10 @@ async function speakAlert(
     const audio = new Audio(url);
     audioRef.current = audio;
     audio.onended = () => URL.revokeObjectURL(url);
+    if (!autoplay) {
+      setPlayable(true);
+      return;
+    }
     try {
       await audio.play();
     } catch {
