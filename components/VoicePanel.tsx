@@ -48,6 +48,7 @@ export function VoicePanel({
   evaluatedAt: string | null;
 }) {
   const [lines, setLines] = useState<TranscriptLine[]>([]);
+  const [exchangeKey, setExchangeKey] = useState(0);
   const [configured, setConfigured] = useState<boolean | null>(null);
   const [banner, setBanner] = useState<string | null>(null);
   const [recording, setRecording] = useState(false);
@@ -66,6 +67,8 @@ export function VoicePanel({
   const releaseRef = useRef(false);
   const grokLineRef = useRef<string | null>(null);
   const youLineRef = useRef<string | null>(null);
+  const userTurnOpenRef = useRef(false);
+  const briefLockRef = useRef(false);
   const chainRef = useRef(Promise.resolve());
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -131,8 +134,20 @@ export function VoicePanel({
     return () => window.removeEventListener("keydown", onKey);
   }, [renderOpen]);
 
+  function revealExchange(next: TranscriptLine[]) {
+    setExchangeKey((current) => current + 1);
+    setLines(next);
+  }
+
   function pushLine(role: TranscriptLine["role"], text: string): string {
     const id = lineId();
+    if (role === "you") {
+      youLineRef.current = id;
+      grokLineRef.current = null;
+      userTurnOpenRef.current = true;
+      revealExchange([{ id, role, text }]);
+      return id;
+    }
     setLines((current) => [...current, { id, role, text }]);
     return id;
   }
@@ -186,8 +201,14 @@ export function VoicePanel({
       executeTool,
       instructions: voiceInstructions(listenerZone(), briefingClock(evaluatedAt)),
       onAssistantDelta: (delta) => {
-        if (!grokLineRef.current) grokLineRef.current = pushLine("grok", delta);
-        else {
+        if (briefLockRef.current) return;
+        if (!grokLineRef.current) {
+          const id = lineId();
+          grokLineRef.current = id;
+          const line = { id, role: "grok" as const, text: delta };
+          if (youLineRef.current) setLines((current) => [...current, line]);
+          else revealExchange([line]);
+        } else {
           const id = grokLineRef.current;
           setLines((current) =>
             current.map((line) => (line.id === id ? { ...line, text: line.text + delta } : line)),
@@ -195,17 +216,23 @@ export function VoicePanel({
         }
       },
       onAssistantDone: (transcript) => {
+        if (briefLockRef.current) return;
         const id = grokLineRef.current;
         grokLineRef.current = null;
+        youLineRef.current = null;
+        userTurnOpenRef.current = false;
         if (!transcript) return;
         if (id) replaceLine(id, transcript);
-        else pushLine("grok", transcript);
+        else revealExchange([{ id: lineId(), role: "grok", text: transcript }]);
       },
       onUserTranscript: (transcript, final) => {
-        if (!transcript) return;
-        if (!youLineRef.current) youLineRef.current = pushLine("you", transcript);
-        else replaceLine(youLineRef.current, transcript);
-        if (final) youLineRef.current = null;
+        if (briefLockRef.current || !transcript) return;
+        if (!userTurnOpenRef.current || !youLineRef.current) {
+          youLineRef.current = pushLine("you", transcript);
+        } else {
+          replaceLine(youLineRef.current, transcript);
+        }
+        if (final) userTurnOpenRef.current = false;
       },
       onAudio: (bytes) => {
         player.enqueue(pcm16FromBytes(bytes));
@@ -300,6 +327,11 @@ export function VoicePanel({
     if (briefing) return;
     setBriefing(true);
     setError(null);
+    briefLockRef.current = true;
+    youLineRef.current = null;
+    grokLineRef.current = null;
+    userTurnOpenRef.current = false;
+    setLines([]);
     try {
       const response = await fetch("/api/brief", {
         method: "POST",
@@ -320,12 +352,15 @@ export function VoicePanel({
       if (!response.ok || !body.text) {
         throw new Error(body.error ?? body.message ?? "Briefing failed");
       }
-      pushLine("grok", body.text);
+      const id = lineId();
+      grokLineRef.current = null;
+      revealExchange([{ id, role: "grok", text: body.text }]);
       if (body.message) setBanner(body.message);
       if (!body.mock) await speak(body.text);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Briefing failed");
     } finally {
+      briefLockRef.current = false;
       setBriefing(false);
     }
   }
@@ -342,12 +377,12 @@ export function VoicePanel({
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
         {banner && <p className="mb-3 text-xs leading-relaxed text-muted">{banner}</p>}
         {error && <p className="mb-3 text-xs leading-relaxed text-act">{error}</p>}
-        {lines.length === 0 && !banner && (
+        {lines.length === 0 && !banner && !briefing && (
           <p className="text-sm leading-relaxed text-muted">
             Hold the mic and ask about SwissCube, or use Brief me if the mic is unavailable.
           </p>
         )}
-        <div className="flex flex-col gap-3">
+        <div key={exchangeKey} className="orbit-fade-in flex flex-col gap-3">
           {lines.map((line) => (
             <p key={line.id} className="text-sm leading-relaxed">
               <span className="mr-2 font-mono text-[10px] tracking-wide text-accent uppercase">
