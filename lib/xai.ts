@@ -4,8 +4,8 @@ import {
   IMAGES_URL,
   IMAGE_MODEL,
   MISSING_KEY_MESSAGE,
+  BRIEF_MODEL,
   RESPONSES_URL,
-  TEXT_MODEL,
   TTS_URL,
   VOICE_ID,
 } from "./xai-config";
@@ -141,7 +141,7 @@ export async function requestTextBrief(
       method: "POST",
       headers: authHeaders(apiKey),
       body: JSON.stringify({
-        model: TEXT_MODEL,
+        model: BRIEF_MODEL,
         input: [{ role: "user", content: prompt }],
       }),
       redirect: "manual",

@@ -48,7 +48,7 @@ describe("createBriefing", () => {
     }
   });
 
-  it("uses grok-4.7 text when the responses call succeeds", async () => {
+  it("uses the non-reasoning brief model when the responses call succeeds", async () => {
     const fetchImpl = vi.fn(async () =>
       Response.json({
         output: [{ type: "message", content: [{ type: "output_text", text: "One pass matters." }] }],
@@ -65,7 +65,7 @@ describe("createBriefing", () => {
     const [url, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
     expect(url).toBe(RESPONSES_URL);
     const body = JSON.parse(String(init.body)) as { model: string; input: { content: string }[] };
-    expect(body.model).toBe("grok-4.7");
+    expect(body.model).toBe("grok-4.20-0309-non-reasoning");
     expect(body.input[0]?.content).toMatch(/America\/New_York/);
     expect(body.input[0]?.content).toMatch(/621/);
   });

@@ -6,6 +6,8 @@ export const REALTIME_MODEL = "grok-voice-latest";
 export const REALTIME_URL = `wss://api.x.ai/v1/realtime?model=${REALTIME_MODEL}`;
 
 export const TEXT_MODEL = "grok-4.7";
+/** Short spoken briefs. grok-4.7 spends hundreds of hidden reasoning tokens on a 60-word script. */
+export const BRIEF_MODEL = "grok-4.20-0309-non-reasoning";
 export const IMAGE_MODEL = "grok-imagine-image-quality";
 export const VOICE_ID = "eve";
 
