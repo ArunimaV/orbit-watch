@@ -10,6 +10,7 @@ import { DEMO_ENCOUNTER_NORAD, DEMO_NORAD, TRACKABLE_CUBESATS } from "@/lib/cons
 import { formatApproachTime } from "@/lib/time-format";
 import { shareAlertText } from "@/lib/share-alert";
 import { subscribeFocusEncounter } from "@/lib/focus";
+import type { GlobeBoard } from "@/lib/orbit-board";
 import type { DismissedExample, DismissedGroup, RankedEvent, Tier } from "@/lib/types";
 
 interface ConjunctionsResponse {
@@ -113,6 +114,7 @@ export function WarningList({
   onEvaluated,
   startedAt,
   onThreat,
+  onBoard,
 }: {
   selectedId: string | null;
   onSelect: (event: RankedEvent | null) => void;
@@ -125,6 +127,7 @@ export function WarningList({
     when: string | null;
     lead: RankedEvent | null;
   }) => void;
+  onBoard?: (board: GlobeBoard) => void;
 }) {
   const [draft, setDraft] = useState(String(DEMO_NORAD));
   const [norad, setNorad] = useState(String(DEMO_NORAD));
@@ -142,6 +145,8 @@ export function WarningList({
   onEvaluatedRef.current = onEvaluated;
   const onThreatRef = useRef(onThreat);
   onThreatRef.current = onThreat;
+  const onBoardRef = useRef(onBoard);
+  onBoardRef.current = onBoard;
 
   const applyRef = useRef<(body: ConjunctionsResponse) => void>(() => {});
   applyRef.current = (body) => {
@@ -158,6 +163,11 @@ export function WarningList({
       satelliteName: body.satelliteName,
       when,
       lead: acts[0] ?? null,
+    });
+    onBoardRef.current?.({
+      satelliteName: body.satelliteName,
+      ranked: body.ranked,
+      dismissedIds: body.dismissed.flatMap((group) => group.examples.map((example) => example.id)),
     });
     onNorad?.(body.norad);
     const stillSelected = body.ranked.some((item) => item.id === selectedIdRef.current);

@@ -25,11 +25,21 @@ export function ThreatAlert({
 }) {
   const [visible, setVisible] = useState(false);
   const [playable, setPlayable] = useState(false);
+  const [played, setPlayed] = useState(false);
   const { enabled: voiceEnabled } = useVoicePreference();
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const replayRef = useRef<(() => Promise<void>) | null>(null);
   const headline = threatHeadline(count, satelliteName, when);
   const headlineRef = useRef(headline);
   headlineRef.current = headline;
+
+  useEffect(() => {
+    const audio = audioRef;
+    return () => {
+      releaseAudio(audio);
+      window.speechSynthesis?.cancel();
+    };
+  }, []);
 
   useEffect(() => {
     if (!armed || count < 1) return undefined;
@@ -37,9 +47,17 @@ export function ThreatAlert({
     const timer = window.setTimeout(() => {
       if (cancelled) return;
       setVisible(true);
+      setPlayed(false);
+      setPlayable(false);
       const alreadySpoken = sessionStorage.getItem(SESSION_KEY) === "1";
       if (!alreadySpoken) sessionStorage.setItem(SESSION_KEY, "1");
-      void speakAlert(headlineRef.current, audioRef, setPlayable, !alreadySpoken);
+      void speakAlert(headlineRef.current, audioRef, replayRef, {
+        showButton: () => setPlayable(true),
+        markPlayed: () => {
+          setPlayed(true);
+          setPlayable(true);
+        },
+      }, !alreadySpoken);
     }, 400);
     return () => {
       cancelled = true;
@@ -79,16 +97,22 @@ export function ThreatAlert({
             className="shrink-0 text-[10px] tracking-wide text-accent uppercase"
             onClick={() => {
               if (!readVoiceEnabled()) return;
-              void audioRef.current?.play().then(() => setPlayable(false)).catch(() => setPlayable(true));
+              const replay = replayRef.current;
+              if (!replay) return;
+              void replay().then(() => setPlayed(true)).catch(() => setPlayable(true));
             }}
           >
-            Play alert
+            {played ? "Replay alert" : "Play alert"}
           </button>
         )}
         <button
           type="button"
           className="shrink-0 text-[10px] tracking-wide text-muted uppercase"
-          onClick={() => setVisible(false)}
+          onClick={() => {
+            audioRef.current?.pause();
+            window.speechSynthesis?.cancel();
+            setVisible(false);
+          }}
         >
           Dismiss
         </button>
@@ -97,10 +121,43 @@ export function ThreatAlert({
   );
 }
 
+function releaseAudio(audioRef: { current: HTMLAudioElement | null }) {
+  const previous = audioRef.current;
+  if (!previous) return;
+  previous.pause();
+  if (previous.src.startsWith("blob:")) URL.revokeObjectURL(previous.src);
+  audioRef.current = null;
+}
+
+function speakInBrowser(text: string): Promise<void> {
+  const synth = window.speechSynthesis;
+  if (!synth) return Promise.reject(new Error("Speech is not available"));
+  synth.cancel();
+  synth.getVoices();
+  return new Promise((resolve, reject) => {
+    const utterance = new SpeechSynthesisUtterance(text);
+    let settled = false;
+    const finish = (ok: boolean) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(startTimer);
+      if (ok) resolve();
+      else reject(new Error("Speech did not play"));
+    };
+    const startTimer = window.setTimeout(() => {
+      if (!synth.speaking && !synth.pending) finish(false);
+    }, 700);
+    utterance.onend = () => finish(true);
+    utterance.onerror = () => finish(false);
+    synth.speak(utterance);
+  });
+}
+
 async function speakAlert(
   text: string,
   audioRef: { current: HTMLAudioElement | null },
-  setPlayable: (value: boolean) => void,
+  replayRef: { current: (() => Promise<void>) | null },
+  callbacks: { showButton: () => void; markPlayed: () => void },
   autoplay: boolean,
 ) {
   if (!readVoiceEnabled()) return;
@@ -111,28 +168,49 @@ async function speakAlert(
       body: JSON.stringify({ text }),
     });
     const contentType = response.headers.get("content-type") ?? "";
-    if (!response.ok || contentType.includes("application/json")) return;
-    const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
-    const audio = new Audio(url);
-    audioRef.current = audio;
-    audio.onended = () => URL.revokeObjectURL(url);
-    if (!readVoiceEnabled()) {
-      audio.pause();
-      audioRef.current = null;
-      URL.revokeObjectURL(url);
-      return;
-    }
-    if (!autoplay) {
-      setPlayable(true);
-      return;
-    }
-    try {
-      await audio.play();
-    } catch {
-      setPlayable(true);
+    if (response.ok && !contentType.includes("application/json")) {
+      const blob = await response.blob();
+      if (blob.size > 0) {
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        releaseAudio(audioRef);
+        audioRef.current = audio;
+        replayRef.current = async () => {
+          if (!readVoiceEnabled()) return;
+          audio.currentTime = 0;
+          await audio.play();
+        };
+        if (!readVoiceEnabled()) {
+          audio.pause();
+          releaseAudio(audioRef);
+          replayRef.current = null;
+          return;
+        }
+        if (!autoplay) {
+          callbacks.showButton();
+          return;
+        }
+        try {
+          await audio.play();
+          callbacks.markPlayed();
+        } catch {
+          callbacks.showButton();
+        }
+        return;
+      }
     }
   } catch {
-    // The banner text is the fallback when speech cannot be fetched or played.
+    // Fall through to the browser voice when the server has no speech bytes.
+  }
+  replayRef.current = () => speakInBrowser(text);
+  if (!autoplay) {
+    callbacks.showButton();
+    return;
+  }
+  try {
+    await replayRef.current();
+    callbacks.markPlayed();
+  } catch {
+    callbacks.showButton();
   }
 }

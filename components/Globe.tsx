@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import type { GlobeBoard } from "@/lib/orbit-board";
 import type { RankedEvent } from "@/lib/types";
 
 const CesiumGlobe = dynamic(() => import("./CesiumGlobe"), {
@@ -14,14 +15,24 @@ const CesiumGlobe = dynamic(() => import("./CesiumGlobe"), {
 
 export function Globe({
   event,
+  board,
   evaluatedAt,
   startedAt,
   onDemoFlown,
 }: {
   event: RankedEvent | null;
+  board?: GlobeBoard | null;
   evaluatedAt: string | null;
   startedAt: number | null;
   onDemoFlown?: () => void;
 }) {
-  return <CesiumGlobe event={event} evaluatedAt={evaluatedAt} startedAt={startedAt} onDemoFlown={onDemoFlown} />;
+  return (
+    <CesiumGlobe
+      event={event}
+      board={board}
+      evaluatedAt={evaluatedAt}
+      startedAt={startedAt}
+      onDemoFlown={onDemoFlown}
+    />
+  );
 }
