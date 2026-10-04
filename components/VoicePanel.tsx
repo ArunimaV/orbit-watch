@@ -530,6 +530,7 @@ export function VoicePanel({
           {lines.length > 0 && (
             <button
               type="button"
+              aria-label="Clear transcript"
               onClick={clearTranscript}
               className="text-[10px] tracking-[0.14em] text-muted uppercase hover:text-foreground"
             >
@@ -595,6 +596,16 @@ export function VoicePanel({
           }}
           onPointerUp={() => stopTalking()}
           onPointerCancel={() => stopTalking()}
+          onKeyDown={(event) => {
+            if (event.repeat || (event.key !== " " && event.key !== "Enter")) return;
+            event.preventDefault();
+            void startTalking();
+          }}
+          onKeyUp={(event) => {
+            if (event.key !== " " && event.key !== "Enter") return;
+            event.preventDefault();
+            stopTalking();
+          }}
           className="flex-1 rounded border border-edge px-2 py-2 text-xs text-foreground hover:border-accent disabled:cursor-not-allowed disabled:text-muted"
         >
           {recording ? "Listening…" : "Hold to talk"}

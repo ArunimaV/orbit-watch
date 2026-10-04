@@ -43,36 +43,39 @@ export function ThreatAlert({
     };
   }, [armed, count]);
 
-  if (!visible) return null;
-
   return (
-    <div className="pointer-events-none fixed inset-x-0 top-2 z-40 flex justify-center px-3">
-      <div
-        role="status"
-        className="pointer-events-auto orbit-fade-in flex max-w-md items-center gap-2 rounded border border-act/40 bg-panel/90 px-3 py-1.5 shadow-sm"
-      >
-        <p className="text-xs leading-snug text-foreground">{headline}</p>
-        {lead && <ShareAlertButton event={lead} satelliteName={satelliteName} />}
-        {playable && (
-          <button
-            type="button"
-            className="shrink-0 text-[10px] tracking-wide text-accent uppercase"
-            onClick={() => {
-              void audioRef.current?.play().then(() => setPlayable(false)).catch(() => setPlayable(true));
-            }}
-          >
-            Play alert
-          </button>
-        )}
-        <button
-          type="button"
-          className="shrink-0 text-[10px] tracking-wide text-muted uppercase"
-          onClick={() => setVisible(false)}
-        >
-          Dismiss
-        </button>
-      </div>
-    </div>
+    <>
+      <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+        {visible ? headline : ""}
+      </p>
+      {visible && (
+        <div className="pointer-events-none fixed inset-x-0 top-2 z-40 flex justify-center px-3">
+          <div className="pointer-events-auto orbit-fade-in flex max-w-md items-center gap-2 rounded border border-act/40 bg-panel/90 px-3 py-1.5 shadow-sm">
+            <p className="text-xs leading-snug text-foreground">{headline}</p>
+            {lead && <ShareAlertButton event={lead} satelliteName={satelliteName} />}
+            {playable && (
+              <button
+                type="button"
+                aria-label="Play alert"
+                className="shrink-0 text-[10px] tracking-wide text-accent uppercase"
+                onClick={() => {
+                  void audioRef.current?.play().then(() => setPlayable(false)).catch(() => setPlayable(true));
+                }}
+              >
+                Play alert
+              </button>
+            )}
+            <button
+              type="button"
+              className="shrink-0 text-[10px] tracking-wide text-muted uppercase"
+              onClick={() => setVisible(false)}
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 

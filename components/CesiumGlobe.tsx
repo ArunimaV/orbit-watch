@@ -64,6 +64,10 @@ function formatLocal(iso: string): string {
   });
 }
 
+function reducedMotion(): boolean {
+  return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
 function toCartesian(sample: TrackSample): Cartesian3 {
   return Cartesian3.fromDegrees(sample.geodetic.lonDeg, sample.geodetic.latDeg, sample.geodetic.altKm * 1000);
 }
@@ -76,7 +80,7 @@ function IdleCamera() {
     viewer.entities.removeAll();
     viewer.camera.flyTo({
       destination: Cartesian3.fromDegrees(8, 20, 20_000_000),
-      duration: 1.2,
+      duration: reducedMotion() ? 0 : 1.2,
     });
   }, [viewer]);
 
@@ -136,7 +140,9 @@ function EncounterScene({
       scene.entities.add({
         position: toCartesian(tcaSample),
         point: {
-          pixelSize: new CallbackProperty(() => 8 + 7 * Math.abs(Math.sin(Date.now() / 280)), false),
+          pixelSize: reducedMotion()
+            ? 12
+            : new CallbackProperty(() => 8 + 7 * Math.abs(Math.sin(Date.now() / 280)), false),
           color: Color.WHITE,
           outlineColor: Color.fromCssColorString("#79d6cb"),
           outlineWidth: 2,
@@ -183,7 +189,7 @@ function EncounterScene({
 
     const sphere = BoundingSphere.fromPoints([...oursPositions, ...otherPositions]);
     scene.camera.flyToBoundingSphere(sphere, {
-      duration: 1.8,
+      duration: reducedMotion() ? 0 : 1.8,
       offset: new HeadingPitchRange(0, CesiumMath.toRadians(-40), Math.max(sphere.radius * 1.7, 1_600_000)),
       complete: () => onFlownRef.current?.(),
     });
@@ -396,6 +402,7 @@ export default function CesiumGlobe({
           <span className="text-act">red · other object</span>
           {event && encounter && (
             <span className="mt-1 rounded bg-background/90 px-2 py-1 font-mono text-xs leading-snug text-foreground">
+              <span className="block">{event.tier}</span>
               {approach ? (
                 <>
                   <span className="block">{approach.label}</span>
