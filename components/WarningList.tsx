@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Countdown } from "@/components/Countdown";
+import { EncounterRoom, MissionRoomFeed, MissionRoomPresence } from "@/components/MissionRoom";
 import { ShareAlertButton } from "@/components/ShareAlertButton";
 import { TcaTime } from "@/components/TcaTime";
 import { VerifyLink } from "@/components/VerifyLink";
@@ -281,9 +282,13 @@ export function WarningList({
       <header className="border-b border-edge px-4 py-3">
         <div className="flex items-center justify-between gap-2">
           <p className="font-mono text-[11px] tracking-[0.18em] text-accent uppercase">Orbit Watch</p>
-          <VoiceToggle />
+          <div className="flex items-center gap-2">
+            <MissionRoomPresence />
+            <VoiceToggle />
+          </div>
         </div>
         <h1 className="mt-1 text-lg leading-tight font-medium">Ranked warnings</h1>
+        <MissionRoomFeed />
         <form
           className="mt-3 flex flex-wrap items-end gap-2"
           onSubmit={(event) => {
@@ -463,6 +468,7 @@ export function WarningList({
                   />
                   <VerifyLink norad={event.ours.noradId} />
                 </div>
+                <EncounterRoom encounterId={event.id} label={event.other.name} />
               </article>
             ))}
           </div>

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { ShareAlertButton } from "@/components/ShareAlertButton";
 import { useVoicePreference } from "@/components/VoicePreference";
 import { threatHeadline } from "@/lib/countdown";
+import { grokAlertFeedLine, postMissionFeed } from "@/lib/mission-room";
 import { shareAlertText } from "@/lib/share-alert";
 import { bindSpeechStop, readVoiceEnabled } from "@/lib/voice-preference";
 import type { RankedEvent } from "@/lib/types";
@@ -50,7 +51,10 @@ export function ThreatAlert({
       setPlayed(false);
       setPlayable(false);
       const alreadySpoken = sessionStorage.getItem(SESSION_KEY) === "1";
-      if (!alreadySpoken) sessionStorage.setItem(SESSION_KEY, "1");
+      if (!alreadySpoken) {
+        sessionStorage.setItem(SESSION_KEY, "1");
+        postMissionFeed("grok", grokAlertFeedLine(headlineRef.current));
+      }
       void speakAlert(headlineRef.current, audioRef, replayRef, {
         showButton: () => setPlayable(true),
         markPlayed: () => {

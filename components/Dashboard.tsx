@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Globe } from "@/components/Globe";
+import { MissionRoomProvider } from "@/components/MissionRoom";
 import { ThreatAlert } from "@/components/ThreatAlert";
 import { VoicePanel } from "@/components/VoicePanel";
 import { VoicePreferenceProvider } from "@/components/VoicePreference";
@@ -37,37 +38,39 @@ export function Dashboard() {
 
   return (
     <VoicePreferenceProvider>
-      <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[minmax(280px,360px)_minmax(0,1fr)_minmax(240px,300px)]">
-        <ThreatAlert
-          armed={flown}
-          count={threat?.count ?? 0}
-          satelliteName={threat?.satelliteName ?? "SwissCube"}
-          when={threat?.when ?? null}
-          lead={threat?.lead ?? null}
-        />
-        <WarningList
-          selectedId={selected?.id ?? null}
-          onSelect={setSelected}
-          onNorad={setNorad}
-          onEvaluated={setEvaluatedAt}
-          startedAt={startedAt}
-          onThreat={setThreat}
-          onBoard={setBoard}
-        />
-        <Globe
-          event={selected}
-          board={board}
-          evaluatedAt={evaluatedAt}
-          startedAt={startedAt}
-          onDemoFlown={() => setFlown(true)}
-        />
-        <VoicePanel
-          norad={norad}
-          satelliteName={threat?.satelliteName ?? "SwissCube"}
-          encounterId={selected?.id ?? null}
-          evaluatedAt={evaluatedAt}
-        />
-      </div>
+      <MissionRoomProvider>
+        <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[minmax(280px,360px)_minmax(0,1fr)_minmax(240px,300px)]">
+          <ThreatAlert
+            armed={flown}
+            count={threat?.count ?? 0}
+            satelliteName={threat?.satelliteName ?? "SwissCube"}
+            when={threat?.when ?? null}
+            lead={threat?.lead ?? null}
+          />
+          <WarningList
+            selectedId={selected?.id ?? null}
+            onSelect={setSelected}
+            onNorad={setNorad}
+            onEvaluated={setEvaluatedAt}
+            startedAt={startedAt}
+            onThreat={setThreat}
+            onBoard={setBoard}
+          />
+          <Globe
+            event={selected}
+            board={board}
+            evaluatedAt={evaluatedAt}
+            startedAt={startedAt}
+            onDemoFlown={() => setFlown(true)}
+          />
+          <VoicePanel
+            norad={norad}
+            satelliteName={threat?.satelliteName ?? "SwissCube"}
+            encounterId={selected?.id ?? null}
+            evaluatedAt={evaluatedAt}
+          />
+        </div>
+      </MissionRoomProvider>
     </VoicePreferenceProvider>
   );
 }

@@ -7,6 +7,7 @@ import { dispatchFocusEncounter } from "@/lib/focus";
 import { pcm16ToBase64 } from "@/lib/pcm";
 import { RealtimeClient, openRealtimeSocket } from "@/lib/realtime-client";
 import { voiceInstructions } from "@/lib/voice-prompt";
+import { grokBriefFeedLine, postMissionFeed } from "@/lib/mission-room";
 import { bindSpeechStop, readVoiceEnabled } from "@/lib/voice-preference";
 import { MISSING_KEY_MESSAGE } from "@/lib/xai-config";
 
@@ -498,6 +499,7 @@ export function VoicePanel({
       const settled = briefSettledRef.current;
       if (settled?.key === key && settled.body.text) {
         show(settled.body.text);
+        postMissionFeed("grok", grokBriefFeedLine(settled.body.text));
         if (settled.body.message) setBanner(settled.body.message);
         if (!settled.body.mock) await speak(settled.body.text, epoch);
         return;
@@ -534,6 +536,7 @@ export function VoicePanel({
       if (transcriptEpoch.current !== epoch) return;
       briefSettledRef.current = { key, body };
       show(body.text);
+      if (body.text) postMissionFeed("grok", grokBriefFeedLine(body.text));
       if (body.message) setBanner(body.message);
       if (!body.mock) await speak(body.text, epoch);
     } catch (cause) {
