@@ -61,7 +61,12 @@ export function Dashboard() {
           startedAt={startedAt}
           onDemoFlown={() => setFlown(true)}
         />
-        <VoicePanel norad={norad} encounterId={selected?.id ?? null} evaluatedAt={evaluatedAt} />
+        <VoicePanel
+          norad={norad}
+          satelliteName={threat?.satelliteName ?? "SwissCube"}
+          encounterId={selected?.id ?? null}
+          evaluatedAt={evaluatedAt}
+        />
       </div>
     </VoicePreferenceProvider>
   );
