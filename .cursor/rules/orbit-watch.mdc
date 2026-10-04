@@ -1,0 +1,35 @@
+---
+description: Orbit Watch project context for every Cursor run
+alwaysApply: true
+---
+
+# Orbit Watch
+
+Grok voice copilot that triages CelesTrak SOCRATES close-approach warnings for university CubeSat teams. Demo of AI triage and explanation. Not for operational collision-avoidance decisions.
+
+## Stack
+
+- Next.js App Router + TypeScript. UI and API routes live in this repo.
+- CesiumJS via Resium for the globe (Phase 2). Load client-only with `next/dynamic` and `ssr: false`. Copy Cesium static assets to `/public/cesium` and set `CESIUM_BASE_URL`. If the ion token is missing, use bundled Natural Earth II imagery.
+- satellite.js v7. Propagate with `json2satrec` from CelesTrak OMM JSON. Never use TLE. Catalog numbers already exceed 5 digits.
+- xAI APIs: base `https://api.x.ai/v1`. The key stays on the server in `XAI_API_KEY`. Never ship it to the browser. Voice uses ephemeral client secrets.
+
+## CelesTrak etiquette
+
+- Cache everything to `data/`. Demo from the committed fixture when the network is down.
+- Check SOCRATES `jsonDir.php` at most once an hour. Download the CSV only when `FILE_MTIME` changes.
+- GP data (`FORMAT=JSON` is required; the default is CSV) at most once per 2 hours per object. `GROUP=active` is once per update.
+- Stop on any non-200 response (including 301/403/404/50x). Log it. Do not retry. Do not follow redirects.
+- SOCRATES screens 7 days at a 5 km threshold. Object 1 vs object 2 is not primary vs secondary. Normalize so the requested satellite is always "ours".
+
+## Time
+
+All times are UTC internally. Show them in the user's local time.
+
+## Ranking
+
+Demo satellite is SwissCube, NORAD 35932. ISS 25544 is a secondary example only.
+
+Dismiss docked or co-orbiting pairs (`rel_speed < 0.10 km/s`; raised from 0.05 so BEESAT-1 at 0.078 km/s is caught), low-probability far misses, events outside the horizon, and collapse recurring same-pair passes before scoring.
+
+Probability term is `clamp((log10(MAX_PROB)+8)/3, 0, 1)` so 1e-8 → 0 and 1e-5 → 1. Weights are otherwise the Section 5 weights. Tiers: Act (score ≥ 70 or MAX_PROB ≥ 1e-5), Watch (40–70), Info (< 40). The original 1e-7…1e-3 map and 1e-4 Act shortcut were ISS/CARA scale and buried CubeSat SOCRATES probabilities. Stale data and dilution are confidence flags, not score inputs.
