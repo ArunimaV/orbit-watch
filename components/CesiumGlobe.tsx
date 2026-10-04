@@ -71,6 +71,34 @@ function toCartesian(sample: TrackSample): Cartesian3 {
   return Cartesian3.fromDegrees(sample.geodetic.lonDeg, sample.geodetic.latDeg, sample.geodetic.altKm * 1000);
 }
 
+function flyToTracks(
+  camera: {
+    flyTo: (options: { destination: Cartesian3; duration?: number; complete?: () => void }) => void;
+    flyToBoundingSphere: (
+      sphere: BoundingSphere,
+      options: { duration?: number; offset?: HeadingPitchRange; complete?: () => void },
+    ) => void;
+  },
+  positions: Cartesian3[],
+  duration: number,
+  complete?: () => void,
+) {
+  if (positions.length < 2) {
+    camera.flyTo({
+      destination: Cartesian3.fromDegrees(8, 20, 20_000_000),
+      duration,
+      complete,
+    });
+    return;
+  }
+  const sphere = BoundingSphere.fromPoints(positions);
+  camera.flyToBoundingSphere(sphere, {
+    duration,
+    offset: new HeadingPitchRange(0, CesiumMath.toRadians(-40), Math.max(sphere.radius * 1.7, 1_600_000)),
+    complete,
+  });
+}
+
 function EncounterCallout({
   position,
   hostRef,
@@ -132,6 +160,24 @@ function EncounterCallout({
 
 const MIN_CAMERA_DISTANCE_M = 120_000;
 const MAX_CAMERA_DISTANCE_M = 32_000_000;
+
+function ViewerHandle({
+  viewerRef,
+}: {
+  viewerRef: {
+    current: { isDestroyed: () => boolean; camera: Parameters<typeof flyToTracks>[0] } | null;
+  };
+}) {
+  const { viewer } = useCesium();
+  useEffect(() => {
+    if (!viewer) return undefined;
+    viewerRef.current = viewer;
+    return () => {
+      viewerRef.current = null;
+    };
+  }, [viewer, viewerRef]);
+  return null;
+}
 
 function GlobeNavigation({ rootRef }: { rootRef: { current: HTMLElement | null } }) {
   const { viewer } = useCesium();
@@ -253,12 +299,7 @@ function EncounterScene({
         })
       : null;
 
-    const sphere = BoundingSphere.fromPoints([...oursPositions, ...otherPositions]);
-    scene.camera.flyToBoundingSphere(sphere, {
-      duration: 1.8,
-      offset: new HeadingPitchRange(0, CesiumMath.toRadians(-40), Math.max(sphere.radius * 1.7, 1_600_000)),
-      complete: () => onFlownRef.current?.(),
-    });
+    flyToTracks(scene.camera, [...oursPositions, ...otherPositions], 1.8, () => onFlownRef.current?.());
     const flownBackup = window.setTimeout(() => onFlownRef.current?.(), 2200);
 
     return () => {
@@ -304,6 +345,11 @@ export default function CesiumGlobe({
   const [renderPending, setRenderPending] = useState(false);
   const [tick, setTick] = useState<number | null>(null);
   const stageRef = useRef<HTMLDivElement>(null);
+  const viewerRef = useRef<{
+    isDestroyed: () => boolean;
+    camera: Parameters<typeof flyToTracks>[0];
+  } | null>(null);
+  const tracksRef = useRef<Cartesian3[]>([]);
   const hintGoneRef = useRef(false);
   const [showHint, setShowHint] = useState(true);
   const [hintVisible, setHintVisible] = useState(true);
@@ -435,6 +481,9 @@ export default function CesiumGlobe({
           countdownClockMs(Date.parse(event.tca), tick, Date.parse(evaluatedAt), tick - startedAt),
         )
       : "";
+  tracksRef.current = encounter
+    ? [...encounter.tracks.ours, ...encounter.tracks.other].map(toCartesian)
+    : [];
   const tcaSample = encounter?.tracks.ours[tcaIndex] ?? null;
   const tcaPosition = tcaSample ? toCartesian(tcaSample) : null;
   const demoPair = event?.ours.noradId === DEMO_NORAD && event?.other.noradId === DEMO_ENCOUNTER_NORAD;
@@ -484,6 +533,7 @@ export default function CesiumGlobe({
                 onFlown={notifyFlown}
               />
             )}
+            <ViewerHandle viewerRef={viewerRef} />
             <GlobeNavigation rootRef={stageRef} />
             <EncounterCallout
               position={tcaPosition}
@@ -514,6 +564,34 @@ export default function CesiumGlobe({
             </div>
           )}
         </div>
+        <button
+          type="button"
+          onClick={() => {
+            const viewer = viewerRef.current;
+            if (!viewer || viewer.isDestroyed()) return;
+            flyToTracks(viewer.camera, tracksRef.current, 1.3);
+          }}
+          className="absolute bottom-[4.6rem] left-3 z-[2] flex items-center gap-1 rounded border border-edge/80 bg-background/75 px-2 py-1 text-[11px] text-muted hover:text-foreground"
+        >
+          <svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true" className="shrink-0">
+            <path
+              d="M8 2.6a5.4 5.4 0 1 1-4.5 2.4"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.4"
+              strokeLinecap="round"
+            />
+            <path
+              d="M3.1 2.2v3.2h3.2"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          Reset view
+        </button>
         {showHint && (
           <p
             className={`pointer-events-none absolute bottom-16 left-1/2 z-[2] -translate-x-1/2 rounded bg-background/80 px-2 py-1 text-[11px] whitespace-nowrap text-muted transition-opacity duration-500 ${
