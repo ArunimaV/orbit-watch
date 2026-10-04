@@ -71,6 +71,8 @@ export function VoicePanel({
   const briefLockRef = useRef(false);
   const chainRef = useRef(Promise.resolve());
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const transcriptEpoch = useRef(0);
+  const dropAssistantRef = useRef(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -201,7 +203,7 @@ export function VoicePanel({
       executeTool,
       instructions: voiceInstructions(listenerZone(), briefingClock(evaluatedAt)),
       onAssistantDelta: (delta) => {
-        if (briefLockRef.current) return;
+        if (briefLockRef.current || dropAssistantRef.current) return;
         if (!grokLineRef.current) {
           const id = lineId();
           grokLineRef.current = id;
@@ -216,6 +218,13 @@ export function VoicePanel({
         }
       },
       onAssistantDone: (transcript) => {
+        if (dropAssistantRef.current) {
+          dropAssistantRef.current = false;
+          grokLineRef.current = null;
+          youLineRef.current = null;
+          userTurnOpenRef.current = false;
+          return;
+        }
         if (briefLockRef.current) return;
         const id = grokLineRef.current;
         grokLineRef.current = null;
@@ -226,7 +235,7 @@ export function VoicePanel({
         else revealExchange([{ id: lineId(), role: "grok", text: transcript }]);
       },
       onUserTranscript: (transcript, final) => {
-        if (briefLockRef.current || !transcript) return;
+        if (briefLockRef.current || dropAssistantRef.current || !transcript) return;
         if (!userTurnOpenRef.current || !youLineRef.current) {
           youLineRef.current = pushLine("you", transcript);
         } else {
@@ -235,6 +244,7 @@ export function VoicePanel({
         if (final) userTurnOpenRef.current = false;
       },
       onAudio: (bytes) => {
+        if (dropAssistantRef.current) return;
         player.enqueue(pcm16FromBytes(bytes));
       },
       onError: (message) => setError(message),
@@ -267,6 +277,7 @@ export function VoicePanel({
 
   async function startTalking() {
     if (recordingRef.current || configured === false) return;
+    dropAssistantRef.current = false;
     releaseRef.current = false;
     setError(null);
     try {
@@ -303,28 +314,60 @@ export function VoicePanel({
     clientRef.current?.commitTurn();
   }
 
-  async function speak(text: string) {
+  function stopPlayback() {
+    const audio = audioRef.current;
+    if (audio) {
+      audio.pause();
+      const src = audio.src;
+      audioRef.current = null;
+      audio.src = "";
+      if (src.startsWith("blob:")) URL.revokeObjectURL(src);
+    }
+    playerRef.current?.stop();
+  }
+
+  function clearTranscript() {
+    transcriptEpoch.current += 1;
+    dropAssistantRef.current = true;
+    youLineRef.current = null;
+    grokLineRef.current = null;
+    userTurnOpenRef.current = false;
+    setLines([]);
+    setError(null);
+    setExchangeKey((current) => current + 1);
+    stopPlayback();
+  }
+
+  async function speak(text: string, epoch: number) {
     const response = await fetch("/api/tts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text }),
     });
     const contentType = response.headers.get("content-type") ?? "";
+    if (transcriptEpoch.current !== epoch) return;
     if (contentType.includes("application/json")) {
       const body = (await response.json()) as { message?: string };
       if (body.message) setBanner(body.message);
       return;
     }
     const blob = await response.blob();
+    if (transcriptEpoch.current !== epoch) return;
     const url = URL.createObjectURL(blob);
     const audio = new Audio(url);
     audioRef.current = audio;
     audio.onended = () => URL.revokeObjectURL(url);
-    await audio.play();
+    try {
+      await audio.play();
+    } catch {
+      URL.revokeObjectURL(url);
+    }
   }
 
   async function brief() {
     if (briefing) return;
+    const epoch = transcriptEpoch.current;
+    dropAssistantRef.current = false;
     setBriefing(true);
     setError(null);
     briefLockRef.current = true;
@@ -352,12 +395,14 @@ export function VoicePanel({
       if (!response.ok || !body.text) {
         throw new Error(body.error ?? body.message ?? "Briefing failed");
       }
+      if (transcriptEpoch.current !== epoch) return;
       const id = lineId();
       grokLineRef.current = null;
       revealExchange([{ id, role: "grok", text: body.text }]);
       if (body.message) setBanner(body.message);
-      if (!body.mock) await speak(body.text);
+      if (!body.mock) await speak(body.text, epoch);
     } catch (cause) {
+      if (transcriptEpoch.current !== epoch) return;
       setError(cause instanceof Error ? cause.message : "Briefing failed");
     } finally {
       briefLockRef.current = false;
@@ -367,11 +412,22 @@ export function VoicePanel({
 
   return (
     <section className="flex min-h-[220px] min-h-0 flex-col bg-panel">
-      <header className="flex items-center justify-between border-b border-edge px-4 py-3">
+      <header className="flex items-center justify-between gap-3 border-b border-edge px-4 py-3">
         <h2 className="text-xs font-medium tracking-[0.16em] text-muted uppercase">Transcript</h2>
-        <span className="font-mono text-[11px] text-muted">
-          {configured === false ? "mock" : recording ? "listening" : connected ? "live" : "idle"}
-        </span>
+        <div className="flex items-center gap-3">
+          {lines.length > 0 && (
+            <button
+              type="button"
+              onClick={clearTranscript}
+              className="text-[10px] tracking-[0.14em] text-muted uppercase hover:text-foreground"
+            >
+              Clear
+            </button>
+          )}
+          <span className="font-mono text-[11px] text-muted">
+            {configured === false ? "mock" : recording ? "listening" : connected ? "live" : "idle"}
+          </span>
+        </div>
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
