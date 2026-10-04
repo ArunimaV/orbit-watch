@@ -5,6 +5,7 @@ import { Countdown } from "@/components/Countdown";
 import { ShareAlertButton } from "@/components/ShareAlertButton";
 import { TcaTime } from "@/components/TcaTime";
 import { VerifyLink } from "@/components/VerifyLink";
+import { VoiceToggle } from "@/components/VoicePreference";
 import { DEMO_ENCOUNTER_NORAD, DEMO_NORAD } from "@/lib/constants";
 import { formatApproachTime } from "@/lib/time-format";
 import { shareAlertText } from "@/lib/share-alert";
@@ -190,7 +191,10 @@ export function WarningList({
   return (
     <section className="flex min-h-0 flex-col bg-panel">
       <header className="border-b border-edge px-4 py-3">
-        <p className="font-mono text-[11px] tracking-[0.18em] text-accent uppercase">Orbit Watch</p>
+        <div className="flex items-center justify-between gap-2">
+          <p className="font-mono text-[11px] tracking-[0.18em] text-accent uppercase">Orbit Watch</p>
+          <VoiceToggle />
+        </div>
         <h1 className="mt-1 text-lg leading-tight font-medium">Ranked warnings</h1>
         <form
           className="mt-3 flex flex-wrap items-end gap-2"
