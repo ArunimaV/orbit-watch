@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { ShareAlertButton } from "@/components/ShareAlertButton";
 import { threatHeadline } from "@/lib/countdown";
+import type { ShareAlertFacts } from "@/lib/share-alert";
 
 const SESSION_KEY = "orbit-watch-alert";
 
@@ -10,11 +12,13 @@ export function ThreatAlert({
   count,
   satelliteName,
   when,
+  share,
 }: {
   armed: boolean;
   count: number;
   satelliteName: string;
   when: string | null;
+  share: ShareAlertFacts | null;
 }) {
   const [visible, setVisible] = useState(false);
   const [playable, setPlayable] = useState(false);
@@ -59,6 +63,7 @@ export function ThreatAlert({
             Play alert
           </button>
         )}
+        {share && <ShareAlertButton facts={share} />}
         <button
           type="button"
           className="shrink-0 text-[10px] tracking-wide text-muted uppercase"

@@ -6,6 +6,7 @@ import { ThreatAlert } from "@/components/ThreatAlert";
 import { VoicePanel } from "@/components/VoicePanel";
 import { WarningList } from "@/components/WarningList";
 import { DEMO_NORAD } from "@/lib/constants";
+import type { ShareAlertFacts } from "@/lib/share-alert";
 import type { RankedEvent } from "@/lib/types";
 
 export function Dashboard() {
@@ -14,7 +15,12 @@ export function Dashboard() {
   const [evaluatedAt, setEvaluatedAt] = useState<string | null>(null);
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [flown, setFlown] = useState(false);
-  const [threat, setThreat] = useState<{ count: number; satelliteName: string; when: string | null } | null>(null);
+  const [threat, setThreat] = useState<{
+    count: number;
+    satelliteName: string;
+    when: string | null;
+    share: ShareAlertFacts | null;
+  } | null>(null);
 
   useEffect(() => {
     setStartedAt(Date.now());
@@ -34,6 +40,7 @@ export function Dashboard() {
         count={threat?.count ?? 0}
         satelliteName={threat?.satelliteName ?? "SwissCube"}
         when={threat?.when ?? null}
+        share={threat?.share ?? null}
       />
       <WarningList
         selectedId={selected?.id ?? null}

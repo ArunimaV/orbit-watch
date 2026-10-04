@@ -2,9 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Countdown } from "@/components/Countdown";
+import { ShareAlertButton } from "@/components/ShareAlertButton";
 import { TcaTime } from "@/components/TcaTime";
 import { VerifyLink } from "@/components/VerifyLink";
 import { DEMO_ENCOUNTER_NORAD, DEMO_NORAD } from "@/lib/constants";
+import { shareFactsFromRanked, type ShareAlertFacts } from "@/lib/share-alert";
 import { formatApproachTime } from "@/lib/time-format";
 import { subscribeFocusEncounter } from "@/lib/focus";
 import type { DismissedExample, DismissedGroup, RankedEvent, Tier } from "@/lib/types";
@@ -114,7 +116,12 @@ export function WarningList({
   onNorad?: (norad: number) => void;
   onEvaluated?: (nowIso: string) => void;
   startedAt: number | null;
-  onThreat?: (threat: { count: number; satelliteName: string; when: string | null }) => void;
+  onThreat?: (threat: {
+    count: number;
+    satelliteName: string;
+    when: string | null;
+    share: ShareAlertFacts | null;
+  }) => void;
 }) {
   const [draft, setDraft] = useState(String(DEMO_NORAD));
   const [norad, setNorad] = useState(String(DEMO_NORAD));
@@ -153,10 +160,12 @@ export function WarningList({
         const acts = body.ranked.filter((item) => item.tier === "Act");
         const zone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
         const when = acts[0] && body.now ? formatApproachTime(acts[0].tca, zone, new Date(body.now)).relative : null;
+        const primary = acts[0] ?? null;
         onThreatRef.current?.({
           count: acts.length,
           satelliteName: body.satelliteName,
           when,
+          share: primary ? shareFactsFromRanked(primary, body.now) : null,
         });
         onNorad?.(body.norad);
         const stillSelected = body.ranked.some((item) => item.id === selectedIdRef.current);
@@ -323,7 +332,8 @@ export function WarningList({
                   <p className="mt-1 text-[11px] text-muted">Not from SOCRATES: {event.syntheticFields.join(", ")}</p>
                 )}
                 </button>
-                <div className="mt-1.5 flex justify-end">
+                <div className="mt-1.5 flex items-center justify-end gap-3">
+                  <ShareAlertButton facts={shareFactsFromRanked(event, data.now)} />
                   <VerifyLink norad={event.ours.noradId} />
                 </div>
               </article>
