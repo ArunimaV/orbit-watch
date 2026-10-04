@@ -5,7 +5,7 @@ import { Globe } from "@/components/Globe";
 import { ThreatAlert } from "@/components/ThreatAlert";
 import { VoicePanel } from "@/components/VoicePanel";
 import { WarningList } from "@/components/WarningList";
-import { DEMO_ENCOUNTER_NORAD, DEMO_NORAD } from "@/lib/constants";
+import { DEMO_NORAD } from "@/lib/constants";
 import type { RankedEvent } from "@/lib/types";
 
 export function Dashboard() {
@@ -20,12 +20,12 @@ export function Dashboard() {
     setStartedAt(Date.now());
   }, []);
 
+  // The globe can arm the banner when its fly-to finishes. If that camera
+  // event is slow or never fires, show the banner anyway.
   useEffect(() => {
-    if (!selected) return undefined;
-    if (selected.ours.noradId !== DEMO_NORAD || selected.other.noradId !== DEMO_ENCOUNTER_NORAD) return undefined;
-    const timer = window.setTimeout(() => setFlown(true), 3200);
+    const timer = window.setTimeout(() => setFlown(true), 2000);
     return () => window.clearTimeout(timer);
-  }, [selected]);
+  }, []);
 
   return (
     <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[minmax(280px,360px)_minmax(0,1fr)_minmax(240px,300px)]">
