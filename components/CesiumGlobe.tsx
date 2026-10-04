@@ -21,6 +21,7 @@ import {
   type Entity,
 } from "cesium";
 import { useCesium, Viewer } from "resium";
+import { VerifyLink } from "@/components/VerifyLink";
 import { formatCountdown, countdownClockMs } from "@/lib/countdown";
 import type { TrackSample } from "@/lib/encounter";
 import { subscribeFocusEncounter } from "@/lib/focus";
@@ -390,6 +391,9 @@ export default function CesiumGlobe({
                 {formatRange(event.rangeKm)} · {event.relSpeedKms.toFixed(3)} km/s
               </span>
               {remaining && <span className="block text-accent">{remaining}</span>}
+              <span className="pointer-events-auto mt-1 block">
+                <VerifyLink norad={event.ours.noradId} />
+              </span>
             </span>
           )}
         </div>

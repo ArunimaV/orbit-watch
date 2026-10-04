@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { countdownClockMs, formatCountdown } from "./countdown";
+import { countdownClockMs, formatCountdown, socratesTableUrl } from "./countdown";
 
 const DEMO_NOW = Date.parse("2026-10-04T16:00:00.000Z");
 const SL8 = Date.parse("2026-10-05T01:26:28.592Z");
@@ -18,5 +18,11 @@ describe("countdown clock", () => {
   it("formats the SwissCube gap from the demo clock as hours and minutes", () => {
     expect(formatCountdown(SL8, DEMO_NOW)).toBe("in 9h 26m");
     expect(formatCountdown(DEMO_NOW + (5 * 3600 + 26 * 60) * 1000, DEMO_NOW)).toBe("in 5h 26m");
+  });
+
+  it("links the primary catalog number on the SOCRATES screen", () => {
+    expect(socratesTableUrl(35932)).toBe(
+      "https://celestrak.org/SOCRATES/table-socrates.php?CATNR=35932&ORDER=MINRANGE&MAX=25",
+    );
   });
 });

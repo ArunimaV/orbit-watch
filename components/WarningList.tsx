@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Countdown } from "@/components/Countdown";
 import { TcaTime } from "@/components/TcaTime";
+import { VerifyLink } from "@/components/VerifyLink";
 import { DEMO_ENCOUNTER_NORAD, DEMO_NORAD } from "@/lib/constants";
 import { subscribeFocusEncounter } from "@/lib/focus";
 import type { DismissedGroup, RankedEvent, Tier } from "@/lib/types";
@@ -257,11 +258,14 @@ export function WarningList({
                   <p className="mt-1 text-[11px] text-muted">Not from SOCRATES: {event.syntheticFields.join(", ")}</p>
                 )}
                 </button>
-                {data.now && startedAt !== null && (
-                  <div className="mt-2">
+                <div className="mt-1.5 flex items-center justify-between gap-2">
+                  {data.now && startedAt !== null ? (
                     <Countdown tca={event.tca} evaluatedAt={data.now} startedAt={startedAt} />
-                  </div>
-                )}
+                  ) : (
+                    <span />
+                  )}
+                  <VerifyLink norad={event.ours.noradId} />
+                </div>
               </article>
             ))}
           </div>

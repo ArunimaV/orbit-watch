@@ -20,3 +20,7 @@ export function formatCountdown(tcaMs: number, nowMs: number): string {
   if (minutes > 0) return `in ${minutes}m ${seconds}s`;
   return `in ${seconds}s`;
 }
+
+export function socratesTableUrl(norad: number): string {
+  return `https://celestrak.org/SOCRATES/table-socrates.php?CATNR=${norad}&ORDER=MINRANGE&MAX=25`;
+}
