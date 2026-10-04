@@ -6,6 +6,7 @@ import { ThreatAlert } from "@/components/ThreatAlert";
 import { VoicePanel } from "@/components/VoicePanel";
 import { WarningList } from "@/components/WarningList";
 import { DEMO_NORAD } from "@/lib/constants";
+import type { GlobeBoard } from "@/lib/orbit-board";
 import type { RankedEvent } from "@/lib/types";
 
 export function Dashboard() {
@@ -15,6 +16,7 @@ export function Dashboard() {
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [flown, setFlown] = useState(false);
   const [threat, setThreat] = useState<{ count: number; satelliteName: string; when: string | null } | null>(null);
+  const [board, setBoard] = useState<GlobeBoard | null>(null);
 
   useEffect(() => {
     setStartedAt(Date.now());
@@ -42,8 +44,15 @@ export function Dashboard() {
         onEvaluated={setEvaluatedAt}
         startedAt={startedAt}
         onThreat={setThreat}
+        onBoard={setBoard}
       />
-      <Globe event={selected} evaluatedAt={evaluatedAt} startedAt={startedAt} onDemoFlown={() => setFlown(true)} />
+      <Globe
+        event={selected}
+        board={board}
+        evaluatedAt={evaluatedAt}
+        startedAt={startedAt}
+        onDemoFlown={() => setFlown(true)}
+      />
       <VoicePanel norad={norad} encounterId={selected?.id ?? null} evaluatedAt={evaluatedAt} />
     </div>
   );

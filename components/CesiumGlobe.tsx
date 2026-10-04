@@ -30,6 +30,20 @@ import type { TrackSample } from "@/lib/encounter";
 import { subscribeFocusEncounter } from "@/lib/focus";
 import { formatApproachTime } from "@/lib/time-format";
 import { placeCallout } from "@/lib/globe-callout";
+import {
+  contextOrbitRequests,
+  dismissedOrbitRequests,
+  DISMISSED_ORBIT_ALPHA,
+  DISMISSED_ORBIT_WIDTH,
+  loadOrbitTracks,
+  OURS_ORBIT_COLOR,
+  OURS_ORBIT_WIDTH,
+  rememberOrbitTracks,
+  threatOrbitColor,
+  THREAT_ORBIT_WIDTH,
+  type GlobeBoard,
+  type LoadedOrbit,
+} from "@/lib/orbit-board";
 import { nearestSampleIndex } from "@/lib/tracks";
 import type { RankedEvent } from "@/lib/types";
 
@@ -69,6 +83,25 @@ function formatLocal(iso: string): string {
 
 function toCartesian(sample: TrackSample): Cartesian3 {
   return Cartesian3.fromDegrees(sample.geodetic.lonDeg, sample.geodetic.latDeg, sample.geodetic.altKm * 1000);
+}
+
+function addPolyline(
+  entities: { add: (entity: object) => Entity },
+  positions: Cartesian3[],
+  width: number,
+  css: string,
+  alpha = 1,
+) {
+  if (positions.length < 2) return;
+  const color = Color.fromCssColorString(css);
+  entities.add({
+    polyline: {
+      positions,
+      width,
+      material: alpha >= 1 ? color : color.withAlpha(alpha),
+      arcType: ArcType.NONE,
+    },
+  });
 }
 
 function flyToTracks(
@@ -222,6 +255,14 @@ function EncounterScene({
   index,
   tcaIndex,
   flyToken,
+  otherColor,
+  context,
+  frameRef,
+  keptSettledRef,
+  keptPositionsRef,
+  framedKeptRef,
+  userAdjustedRef,
+  expectKept,
   onFlown,
 }: {
   ours: TrackSample[];
@@ -229,6 +270,14 @@ function EncounterScene({
   index: number;
   tcaIndex: number;
   flyToken: number;
+  otherColor: string;
+  context: LoadedOrbit[];
+  frameRef: { current: Cartesian3[] };
+  keptSettledRef: { current: boolean };
+  keptPositionsRef: { current: Cartesian3[] };
+  framedKeptRef: { current: boolean };
+  userAdjustedRef: { current: boolean };
+  expectKept: boolean;
   onFlown?: () => void;
 }) {
   const { viewer } = useCesium();
@@ -246,22 +295,9 @@ function EncounterScene({
 
     const oursPositions = ours.map(toCartesian);
     const otherPositions = other.map(toCartesian);
-    scene.entities.add({
-      polyline: {
-        positions: oursPositions,
-        width: 2.5,
-        material: Color.fromCssColorString("#79d6cb"),
-        arcType: ArcType.NONE,
-      },
-    });
-    scene.entities.add({
-      polyline: {
-        positions: otherPositions,
-        width: 2.5,
-        material: Color.fromCssColorString("#ff5d6c"),
-        arcType: ArcType.NONE,
-      },
-    });
+    addPolyline(scene.entities, oursPositions, 9, OURS_ORBIT_COLOR, 0.28);
+    addPolyline(scene.entities, oursPositions, OURS_ORBIT_WIDTH, OURS_ORBIT_COLOR);
+    addPolyline(scene.entities, otherPositions, THREAT_ORBIT_WIDTH, otherColor);
     const tcaSample = ours[tcaIndex] ?? ours[0];
     if (tcaSample) {
       scene.entities.add({
@@ -269,7 +305,7 @@ function EncounterScene({
         point: {
           pixelSize: new CallbackProperty(() => 8 + 7 * Math.abs(Math.sin(Date.now() / 280)), false),
           color: Color.WHITE,
-          outlineColor: Color.fromCssColorString("#79d6cb"),
+          outlineColor: Color.fromCssColorString(OURS_ORBIT_COLOR),
           outlineWidth: 2,
           disableDepthTestDistance: Number.POSITIVE_INFINITY,
         },
@@ -283,7 +319,7 @@ function EncounterScene({
           position: toCartesian(anchor),
           point: {
             pixelSize: 11,
-            color: Color.fromCssColorString("#79d6cb"),
+            color: Color.fromCssColorString(OURS_ORBIT_COLOR),
             disableDepthTestDistance: Number.POSITIVE_INFINITY,
           },
         })
@@ -293,21 +329,61 @@ function EncounterScene({
           position: toCartesian(otherAnchor),
           point: {
             pixelSize: 11,
-            color: Color.fromCssColorString("#ff5d6c"),
+            color: Color.fromCssColorString(otherColor),
             disableDepthTestDistance: Number.POSITIVE_INFINITY,
           },
         })
       : null;
 
-    flyToTracks(scene.camera, [...oursPositions, ...otherPositions], 1.8, () => onFlownRef.current?.());
+    const started = Date.now();
+    let flyAttempt = 0;
+    const scheduleFly = () => {
+      if (scene.isDestroyed()) return;
+      const waited = Date.now() - started;
+      if (expectKept && !keptSettledRef.current && waited < 1000) {
+        flyAttempt = window.setTimeout(scheduleFly, 80);
+        return;
+      }
+      if (userAdjustedRef.current) return;
+      const framed = frameRef.current.length >= 2 ? frameRef.current : [...oursPositions, ...otherPositions];
+      if (keptPositionsRef.current.length > 0) framedKeptRef.current = true;
+      flyToTracks(scene.camera, framed, 1.8, () => onFlownRef.current?.());
+    };
+    scheduleFly();
     const flownBackup = window.setTimeout(() => onFlownRef.current?.(), 2200);
 
     return () => {
+      window.clearTimeout(flyAttempt);
       window.clearTimeout(flownBackup);
       dots.current = { ours: null, other: null };
       if (!scene.isDestroyed()) scene.entities.removeAll();
     };
-  }, [viewer, ours, other, tcaIndex, flyToken]);
+  }, [viewer, ours, other, tcaIndex, flyToken, otherColor, expectKept, frameRef, keptSettledRef, keptPositionsRef, framedKeptRef, userAdjustedRef]);
+
+  useEffect(() => {
+    if (!viewer || viewer.isDestroyed()) return undefined;
+    const added: Entity[] = [];
+    const entities = {
+      add: (entity: object) => {
+        const created = viewer.entities.add(entity);
+        added.push(created);
+        return created;
+      },
+    };
+    for (const orbit of context) {
+      if (orbit.role === "kept") {
+        addPolyline(entities, orbit.ours.map(toCartesian), 9, OURS_ORBIT_COLOR, 0.28);
+        addPolyline(entities, orbit.ours.map(toCartesian), OURS_ORBIT_WIDTH, OURS_ORBIT_COLOR);
+        addPolyline(entities, orbit.other.map(toCartesian), THREAT_ORBIT_WIDTH, orbit.color);
+      } else {
+        addPolyline(entities, orbit.other.map(toCartesian), DISMISSED_ORBIT_WIDTH, orbit.color, DISMISSED_ORBIT_ALPHA);
+      }
+    }
+    return () => {
+      if (viewer.isDestroyed()) return;
+      for (const entity of added) viewer.entities.remove(entity);
+    };
+  }, [viewer, context, ours, other, tcaIndex, flyToken, otherColor, expectKept]);
 
   useEffect(() => {
     const oursSample = ours[Math.min(index, ours.length - 1)];
@@ -325,11 +401,13 @@ function EncounterScene({
 
 export default function CesiumGlobe({
   event,
+  board,
   evaluatedAt,
   startedAt,
   onDemoFlown,
 }: {
   event: RankedEvent | null;
+  board?: GlobeBoard | null;
   evaluatedAt: string | null;
   startedAt: number | null;
   onDemoFlown?: () => void;
@@ -344,12 +422,36 @@ export default function CesiumGlobe({
   const [renderUrl, setRenderUrl] = useState<string | null>(null);
   const [renderPending, setRenderPending] = useState(false);
   const [tick, setTick] = useState<number | null>(null);
+  const [keptOrbits, setKeptOrbits] = useState<LoadedOrbit[]>([]);
+  const [dismissedOrbits, setDismissedOrbits] = useState<LoadedOrbit[]>([]);
+  const [showDismissed, setShowDismissed] = useState(false);
+  const boardKey = `${event?.id ?? ""}|${(board?.ranked ?? []).map((item) => item.id).join(",")}`;
+  const [orbitEpoch, setOrbitEpoch] = useState(boardKey);
+  if (orbitEpoch !== boardKey) {
+    setOrbitEpoch(boardKey);
+    setKeptOrbits([]);
+    setDismissedOrbits([]);
+  }
   const stageRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<{
     isDestroyed: () => boolean;
     camera: Parameters<typeof flyToTracks>[0];
   } | null>(null);
   const tracksRef = useRef<Cartesian3[]>([]);
+  const frameRef = useRef<Cartesian3[]>([]);
+  const selectedPositionsRef = useRef<Cartesian3[]>([]);
+  const keptPositionsRef = useRef<Cartesian3[]>([]);
+  const keptSettledRef = useRef(false);
+  const framedKeptRef = useRef(false);
+  const userAdjustedRef = useRef(false);
+  const boardKeyRef = useRef<string | null>(null);
+  if (boardKeyRef.current !== boardKey) {
+    boardKeyRef.current = boardKey;
+    keptSettledRef.current = false;
+    keptPositionsRef.current = [];
+    framedKeptRef.current = false;
+    userAdjustedRef.current = false;
+  }
   const hintGoneRef = useRef(false);
   const [showHint, setShowHint] = useState(true);
   const [hintVisible, setHintVisible] = useState(true);
@@ -420,6 +522,7 @@ export default function CesiumGlobe({
         return body;
       })
       .then((body) => {
+        rememberOrbitTracks(body.id, body.tracks);
         setEncounter(body);
         setIndex(nearestSampleIndex(body.tracks.ours, body.tca));
         setPlaying(true);
@@ -434,6 +537,56 @@ export default function CesiumGlobe({
       });
     return () => controller.abort();
   }, [event]);
+
+  useEffect(() => {
+    const requests = contextOrbitRequests(board?.ranked ?? [], event?.id ?? null);
+    if (requests.length === 0) {
+      keptPositionsRef.current = [];
+      keptSettledRef.current = true;
+      frameRef.current = selectedPositionsRef.current;
+      setKeptOrbits([]);
+      return undefined;
+    }
+    const controller = new AbortController();
+    let cancelled = false;
+    void loadOrbitTracks(requests, controller.signal).then((loaded) => {
+      if (cancelled) return;
+      keptPositionsRef.current = loaded.flatMap((orbit) => [...orbit.ours, ...orbit.other].map(toCartesian));
+      keptSettledRef.current = true;
+      frameRef.current = [...selectedPositionsRef.current, ...keptPositionsRef.current];
+      setKeptOrbits(loaded);
+    });
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [board, event?.id]);
+
+  useEffect(() => {
+    if (!showDismissed) return undefined;
+    const requests = dismissedOrbitRequests(board?.dismissedIds ?? []);
+    if (requests.length === 0) {
+      setDismissedOrbits([]);
+      return undefined;
+    }
+    const controller = new AbortController();
+    let cancelled = false;
+    void loadOrbitTracks(requests, controller.signal).then((loaded) => {
+      if (!cancelled) setDismissedOrbits(loaded);
+    });
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [showDismissed, board]);
+
+  useEffect(() => {
+    if (keptOrbits.length === 0 || framedKeptRef.current || userAdjustedRef.current) return;
+    const viewer = viewerRef.current;
+    if (!viewer || viewer.isDestroyed()) return;
+    framedKeptRef.current = true;
+    flyToTracks(viewer.camera, frameRef.current, 1.2);
+  }, [keptOrbits]);
 
   useEffect(() => {
     if (!playing || !encounter) return undefined;
@@ -467,6 +620,7 @@ export default function CesiumGlobe({
   }, []);
 
   function dismissHint() {
+    userAdjustedRef.current = true;
     if (hintGoneRef.current) return;
     hintGoneRef.current = true;
     setHintVisible(false);
@@ -481,9 +635,20 @@ export default function CesiumGlobe({
           countdownClockMs(Date.parse(event.tca), tick, Date.parse(evaluatedAt), tick - startedAt),
         )
       : "";
-  tracksRef.current = encounter
+  const selectedPositions = encounter
     ? [...encounter.tracks.ours, ...encounter.tracks.other].map(toCartesian)
     : [];
+  selectedPositionsRef.current = selectedPositions;
+  frameRef.current = [...selectedPositions, ...keptPositionsRef.current];
+  tracksRef.current = frameRef.current;
+  const contextOrbits = useMemo(
+    () => (showDismissed ? [...keptOrbits, ...dismissedOrbits] : keptOrbits),
+    [showDismissed, keptOrbits, dismissedOrbits],
+  );
+  const expectKept = contextOrbitRequests(board?.ranked ?? [], event?.id ?? null).length > 0;
+  const otherColor = event ? threatOrbitColor(event.tier) : "#ff5d6c";
+  const legendThreats = (board?.ranked ?? (event ? [event] : [])).slice(0, 4);
+  const hiddenThreats = (board?.ranked.length ?? 0) - legendThreats.length;
   const tcaSample = encounter?.tracks.ours[tcaIndex] ?? null;
   const tcaPosition = tcaSample ? toCartesian(tcaSample) : null;
   const demoPair = event?.ours.noradId === DEMO_NORAD && event?.other.noradId === DEMO_ENCOUNTER_NORAD;
@@ -530,6 +695,14 @@ export default function CesiumGlobe({
                 index={index}
                 tcaIndex={tcaIndex}
                 flyToken={flyToken}
+                otherColor={otherColor}
+                context={contextOrbits}
+                frameRef={frameRef}
+                keptSettledRef={keptSettledRef}
+                keptPositionsRef={keptPositionsRef}
+                framedKeptRef={framedKeptRef}
+                userAdjustedRef={userAdjustedRef}
+                expectKept={expectKept}
                 onFlown={notifyFlown}
               />
             )}
@@ -592,6 +765,20 @@ export default function CesiumGlobe({
           </svg>
           Reset view
         </button>
+        {(board?.dismissedIds.length ?? 0) > 0 && (
+          <button
+            type="button"
+            aria-pressed={showDismissed}
+            onClick={() => setShowDismissed((value) => !value)}
+            className={`absolute bottom-[6.6rem] left-3 z-[2] rounded border px-2 py-1 text-[11px] ${
+              showDismissed
+                ? "border-edge/80 bg-background/75 text-foreground"
+                : "border-transparent bg-background/45 text-muted hover:text-foreground"
+            }`}
+          >
+            Show dismissed
+          </button>
+        )}
         {showHint && (
           <p
             className={`pointer-events-none absolute bottom-16 left-1/2 z-[2] -translate-x-1/2 rounded bg-background/80 px-2 py-1 text-[11px] whitespace-nowrap text-muted transition-opacity duration-500 ${
@@ -602,8 +789,13 @@ export default function CesiumGlobe({
           </p>
         )}
         <div className="pointer-events-none absolute top-3 left-3 z-[2] flex flex-col gap-1 text-[11px]">
-          <span className="text-accent">cyan · ours</span>
-          <span className="text-act">red · other object</span>
+          <span className="font-medium text-accent">{event?.ours.name ?? board?.satelliteName ?? "Tracked satellite"}</span>
+          {legendThreats.map((item) => (
+            <span key={item.id} style={{ color: threatOrbitColor(item.tier) }}>
+              {item.other.name}
+            </span>
+          ))}
+          {hiddenThreats > 0 && <span className="text-muted">+{hiddenThreats}</span>}
           {event && encounter && (
             <span className="mt-1 rounded bg-background/90 px-2 py-1 font-mono text-xs leading-snug text-foreground">
               {approach ? (

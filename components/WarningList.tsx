@@ -7,6 +7,7 @@ import { VerifyLink } from "@/components/VerifyLink";
 import { DEMO_ENCOUNTER_NORAD, DEMO_NORAD } from "@/lib/constants";
 import { formatApproachTime } from "@/lib/time-format";
 import { subscribeFocusEncounter } from "@/lib/focus";
+import type { GlobeBoard } from "@/lib/orbit-board";
 import type { DismissedExample, DismissedGroup, RankedEvent, Tier } from "@/lib/types";
 
 interface ConjunctionsResponse {
@@ -108,6 +109,7 @@ export function WarningList({
   onEvaluated,
   startedAt,
   onThreat,
+  onBoard,
 }: {
   selectedId: string | null;
   onSelect: (event: RankedEvent | null) => void;
@@ -115,6 +117,7 @@ export function WarningList({
   onEvaluated?: (nowIso: string) => void;
   startedAt: number | null;
   onThreat?: (threat: { count: number; satelliteName: string; when: string | null }) => void;
+  onBoard?: (board: GlobeBoard) => void;
 }) {
   const [draft, setDraft] = useState(String(DEMO_NORAD));
   const [norad, setNorad] = useState(String(DEMO_NORAD));
@@ -130,6 +133,8 @@ export function WarningList({
   onEvaluatedRef.current = onEvaluated;
   const onThreatRef = useRef(onThreat);
   onThreatRef.current = onThreat;
+  const onBoardRef = useRef(onBoard);
+  onBoardRef.current = onBoard;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -157,6 +162,11 @@ export function WarningList({
           count: acts.length,
           satelliteName: body.satelliteName,
           when,
+        });
+        onBoardRef.current?.({
+          satelliteName: body.satelliteName,
+          ranked: body.ranked,
+          dismissedIds: body.dismissed.flatMap((group) => group.examples.map((example) => example.id)),
         });
         onNorad?.(body.norad);
         const stillSelected = body.ranked.some((item) => item.id === selectedIdRef.current);
