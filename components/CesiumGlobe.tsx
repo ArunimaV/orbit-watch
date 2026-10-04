@@ -10,12 +10,14 @@ import {
   Cartesian3,
   Color,
   ConstantPositionProperty,
+  Ellipsoid,
+  EllipsoidalOccluder,
   EllipsoidTerrainProvider,
   HeadingPitchRange,
   ImageryLayer,
   Ion,
-  LabelStyle,
   Math as CesiumMath,
+  SceneTransforms,
   TileMapServiceImageryProvider,
   buildModuleUrl,
   type Entity,
@@ -27,6 +29,21 @@ import { formatCountdown, countdownClockMs } from "@/lib/countdown";
 import type { TrackSample } from "@/lib/encounter";
 import { subscribeFocusEncounter } from "@/lib/focus";
 import { formatApproachTime } from "@/lib/time-format";
+import { placeCallout } from "@/lib/globe-callout";
+import {
+  contextOrbitRequests,
+  dismissedOrbitRequests,
+  DISMISSED_ORBIT_ALPHA,
+  DISMISSED_ORBIT_WIDTH,
+  loadOrbitTracks,
+  OURS_ORBIT_COLOR,
+  OURS_ORBIT_WIDTH,
+  rememberOrbitTracks,
+  threatOrbitColor,
+  THREAT_ORBIT_WIDTH,
+  type GlobeBoard,
+  type LoadedOrbit,
+} from "@/lib/orbit-board";
 import { nearestSampleIndex } from "@/lib/tracks";
 import type { RankedEvent } from "@/lib/types";
 
@@ -68,6 +85,155 @@ function toCartesian(sample: TrackSample): Cartesian3 {
   return Cartesian3.fromDegrees(sample.geodetic.lonDeg, sample.geodetic.latDeg, sample.geodetic.altKm * 1000);
 }
 
+function addPolyline(
+  entities: { add: (entity: object) => Entity },
+  positions: Cartesian3[],
+  width: number,
+  css: string,
+  alpha = 1,
+) {
+  if (positions.length < 2) return;
+  const color = Color.fromCssColorString(css);
+  entities.add({
+    polyline: {
+      positions,
+      width,
+      material: alpha >= 1 ? color : color.withAlpha(alpha),
+      arcType: ArcType.NONE,
+    },
+  });
+}
+
+function flyToTracks(
+  camera: {
+    flyTo: (options: { destination: Cartesian3; duration?: number; complete?: () => void }) => void;
+    flyToBoundingSphere: (
+      sphere: BoundingSphere,
+      options: { duration?: number; offset?: HeadingPitchRange; complete?: () => void },
+    ) => void;
+  },
+  positions: Cartesian3[],
+  duration: number,
+  complete?: () => void,
+) {
+  if (positions.length < 2) {
+    camera.flyTo({
+      destination: Cartesian3.fromDegrees(8, 20, 20_000_000),
+      duration,
+      complete,
+    });
+    return;
+  }
+  const sphere = BoundingSphere.fromPoints(positions);
+  camera.flyToBoundingSphere(sphere, {
+    duration,
+    offset: new HeadingPitchRange(0, CesiumMath.toRadians(-40), Math.max(sphere.radius * 1.7, 1_600_000)),
+    complete,
+  });
+}
+
+function EncounterCallout({
+  position,
+  hostRef,
+  labelRef,
+  lineRef,
+}: {
+  position: Cartesian3 | null;
+  hostRef: { current: HTMLDivElement | null };
+  labelRef: { current: HTMLDivElement | null };
+  lineRef: { current: SVGLineElement | null };
+}) {
+  const { viewer } = useCesium();
+  const positionRef = useRef(position);
+  positionRef.current = position;
+
+  useEffect(() => {
+    if (!viewer || viewer.isDestroyed()) return undefined;
+    const occluder = new EllipsoidalOccluder(Ellipsoid.WGS84, viewer.camera.position);
+    const scratch = new Cartesian2();
+    const update = () => {
+      const host = hostRef.current;
+      const label = labelRef.current;
+      const line = lineRef.current;
+      const target = positionRef.current;
+      if (!host || !label || !line) return;
+      if (!target || viewer.isDestroyed()) {
+        label.style.opacity = "0";
+        line.style.opacity = "0";
+        return;
+      }
+      occluder.cameraPosition = viewer.camera.position;
+      const projected = SceneTransforms.worldToWindowCoordinates(viewer.scene, target, scratch);
+      if (!projected || !occluder.isPointVisible(target)) {
+        label.style.opacity = "0";
+        line.style.opacity = "0";
+        return;
+      }
+      const canvasRect = viewer.canvas.getBoundingClientRect();
+      const hostRect = host.getBoundingClientRect();
+      const x = projected.x + canvasRect.left - hostRect.left;
+      const y = projected.y + canvasRect.top - hostRect.top;
+      const placed = placeCallout(x, y, label.offsetWidth || 160, label.offsetHeight || 58, host.clientWidth, host.clientHeight);
+      label.style.transform = `translate(${Math.round(placed.left)}px, ${Math.round(placed.top)}px)`;
+      label.style.opacity = "1";
+      line.setAttribute("x1", String(Math.round(x)));
+      line.setAttribute("y1", String(Math.round(y)));
+      line.setAttribute("x2", String(Math.round(placed.anchorX)));
+      line.setAttribute("y2", String(Math.round(placed.anchorY)));
+      line.style.opacity = "0.85";
+    };
+    viewer.scene.postRender.addEventListener(update);
+    return () => {
+      if (!viewer.isDestroyed()) viewer.scene.postRender.removeEventListener(update);
+    };
+  }, [viewer, hostRef, labelRef, lineRef]);
+
+  return null;
+}
+
+const MIN_CAMERA_DISTANCE_M = 120_000;
+const MAX_CAMERA_DISTANCE_M = 32_000_000;
+
+function ViewerHandle({
+  viewerRef,
+}: {
+  viewerRef: {
+    current: { isDestroyed: () => boolean; camera: Parameters<typeof flyToTracks>[0] } | null;
+  };
+}) {
+  const { viewer } = useCesium();
+  useEffect(() => {
+    if (!viewer) return undefined;
+    viewerRef.current = viewer;
+    return () => {
+      viewerRef.current = null;
+    };
+  }, [viewer, viewerRef]);
+  return null;
+}
+
+function GlobeNavigation({ rootRef }: { rootRef: { current: HTMLElement | null } }) {
+  const { viewer } = useCesium();
+
+  useEffect(() => {
+    if (!viewer || viewer.isDestroyed()) return undefined;
+    const controller = viewer.scene.screenSpaceCameraController;
+    controller.minimumZoomDistance = MIN_CAMERA_DISTANCE_M;
+    controller.maximumZoomDistance = MAX_CAMERA_DISTANCE_M;
+    controller.enableCollisionDetection = true;
+    controller.zoomFactor = 1.15;
+    controller.inertiaZoom = 0.62;
+    const onWheel = (event: WheelEvent) => {
+      const root = rootRef.current;
+      controller.enableZoom = Boolean(root && event.target instanceof Node && root.contains(event.target));
+    };
+    window.addEventListener("wheel", onWheel, { capture: true, passive: true });
+    return () => window.removeEventListener("wheel", onWheel, { capture: true });
+  }, [viewer, rootRef]);
+
+  return null;
+}
+
 function IdleCamera() {
   const { viewer } = useCesium();
 
@@ -88,16 +254,18 @@ function EncounterScene({
   other,
   index,
   tcaIndex,
-  labelRef,
   flyToken,
+  otherColor,
+  context,
   onFlown,
 }: {
   ours: TrackSample[];
   other: TrackSample[];
   index: number;
   tcaIndex: number;
-  labelRef: { current: string };
   flyToken: number;
+  otherColor: string;
+  context: LoadedOrbit[];
   onFlown?: () => void;
 }) {
   const { viewer } = useCesium();
@@ -115,22 +283,9 @@ function EncounterScene({
 
     const oursPositions = ours.map(toCartesian);
     const otherPositions = other.map(toCartesian);
-    scene.entities.add({
-      polyline: {
-        positions: oursPositions,
-        width: 2.5,
-        material: Color.fromCssColorString("#79d6cb"),
-        arcType: ArcType.NONE,
-      },
-    });
-    scene.entities.add({
-      polyline: {
-        positions: otherPositions,
-        width: 2.5,
-        material: Color.fromCssColorString("#ff5d6c"),
-        arcType: ArcType.NONE,
-      },
-    });
+    addPolyline(scene.entities, oursPositions, 9, OURS_ORBIT_COLOR, 0.28);
+    addPolyline(scene.entities, oursPositions, OURS_ORBIT_WIDTH, OURS_ORBIT_COLOR);
+    addPolyline(scene.entities, otherPositions, THREAT_ORBIT_WIDTH, otherColor);
     const tcaSample = ours[tcaIndex] ?? ours[0];
     if (tcaSample) {
       scene.entities.add({
@@ -138,21 +293,8 @@ function EncounterScene({
         point: {
           pixelSize: new CallbackProperty(() => 8 + 7 * Math.abs(Math.sin(Date.now() / 280)), false),
           color: Color.WHITE,
-          outlineColor: Color.fromCssColorString("#79d6cb"),
+          outlineColor: Color.fromCssColorString(OURS_ORBIT_COLOR),
           outlineWidth: 2,
-          disableDepthTestDistance: Number.POSITIVE_INFINITY,
-        },
-        label: {
-          text: new CallbackProperty(() => labelRef.current, false),
-          font: "bold 16px sans-serif",
-          pixelOffset: new Cartesian2(0, -36),
-          fillColor: Color.WHITE,
-          outlineColor: Color.BLACK,
-          outlineWidth: 2,
-          style: LabelStyle.FILL_AND_OUTLINE,
-          showBackground: true,
-          backgroundColor: Color.fromCssColorString("#07131a").withAlpha(0.92),
-          backgroundPadding: new Cartesian2(10, 6),
           disableDepthTestDistance: Number.POSITIVE_INFINITY,
         },
       });
@@ -165,7 +307,7 @@ function EncounterScene({
           position: toCartesian(anchor),
           point: {
             pixelSize: 11,
-            color: Color.fromCssColorString("#79d6cb"),
+            color: Color.fromCssColorString(OURS_ORBIT_COLOR),
             disableDepthTestDistance: Number.POSITIVE_INFINITY,
           },
         })
@@ -175,18 +317,13 @@ function EncounterScene({
           position: toCartesian(otherAnchor),
           point: {
             pixelSize: 11,
-            color: Color.fromCssColorString("#ff5d6c"),
+            color: Color.fromCssColorString(otherColor),
             disableDepthTestDistance: Number.POSITIVE_INFINITY,
           },
         })
       : null;
 
-    const sphere = BoundingSphere.fromPoints([...oursPositions, ...otherPositions]);
-    scene.camera.flyToBoundingSphere(sphere, {
-      duration: 1.8,
-      offset: new HeadingPitchRange(0, CesiumMath.toRadians(-40), Math.max(sphere.radius * 1.7, 1_600_000)),
-      complete: () => onFlownRef.current?.(),
-    });
+    flyToTracks(scene.camera, [...oursPositions, ...otherPositions], 1.8, () => onFlownRef.current?.());
     const flownBackup = window.setTimeout(() => onFlownRef.current?.(), 2200);
 
     return () => {
@@ -194,7 +331,32 @@ function EncounterScene({
       dots.current = { ours: null, other: null };
       if (!scene.isDestroyed()) scene.entities.removeAll();
     };
-  }, [viewer, ours, other, tcaIndex, flyToken, labelRef]);
+  }, [viewer, ours, other, tcaIndex, flyToken, otherColor]);
+
+  useEffect(() => {
+    if (!viewer || viewer.isDestroyed()) return undefined;
+    const added: Entity[] = [];
+    const entities = {
+      add: (entity: object) => {
+        const created = viewer.entities.add(entity);
+        added.push(created);
+        return created;
+      },
+    };
+    for (const orbit of context) {
+      if (orbit.role === "kept") {
+        addPolyline(entities, orbit.ours.map(toCartesian), 9, OURS_ORBIT_COLOR, 0.28);
+        addPolyline(entities, orbit.ours.map(toCartesian), OURS_ORBIT_WIDTH, OURS_ORBIT_COLOR);
+        addPolyline(entities, orbit.other.map(toCartesian), THREAT_ORBIT_WIDTH, orbit.color);
+      } else {
+        addPolyline(entities, orbit.other.map(toCartesian), DISMISSED_ORBIT_WIDTH, orbit.color, DISMISSED_ORBIT_ALPHA);
+      }
+    }
+    return () => {
+      if (viewer.isDestroyed()) return;
+      for (const entity of added) viewer.entities.remove(entity);
+    };
+  }, [viewer, context, ours, other, tcaIndex, flyToken, otherColor]);
 
   useEffect(() => {
     const oursSample = ours[Math.min(index, ours.length - 1)];
@@ -212,11 +374,13 @@ function EncounterScene({
 
 export default function CesiumGlobe({
   event,
+  board,
   evaluatedAt,
   startedAt,
   onDemoFlown,
 }: {
   event: RankedEvent | null;
+  board?: GlobeBoard | null;
   evaluatedAt: string | null;
   startedAt: number | null;
   onDemoFlown?: () => void;
@@ -231,7 +395,28 @@ export default function CesiumGlobe({
   const [renderUrl, setRenderUrl] = useState<string | null>(null);
   const [renderPending, setRenderPending] = useState(false);
   const [tick, setTick] = useState<number | null>(null);
-  const labelRef = useRef("");
+  const [keptOrbits, setKeptOrbits] = useState<LoadedOrbit[]>([]);
+  const [dismissedOrbits, setDismissedOrbits] = useState<LoadedOrbit[]>([]);
+  const [showDismissed, setShowDismissed] = useState(false);
+  const boardKey = `${event?.id ?? ""}|${(board?.ranked ?? []).map((item) => item.id).join(",")}`;
+  const [orbitEpoch, setOrbitEpoch] = useState(boardKey);
+  if (orbitEpoch !== boardKey) {
+    setOrbitEpoch(boardKey);
+    setKeptOrbits([]);
+    setDismissedOrbits([]);
+  }
+  const stageRef = useRef<HTMLDivElement>(null);
+  const viewerRef = useRef<{
+    isDestroyed: () => boolean;
+    camera: Parameters<typeof flyToTracks>[0];
+  } | null>(null);
+  const tracksRef = useRef<Cartesian3[]>([]);
+  const hintGoneRef = useRef(false);
+  const [showHint, setShowHint] = useState(true);
+  const [hintVisible, setHintVisible] = useState(true);
+  const calloutHostRef = useRef<HTMLDivElement>(null);
+  const calloutLabelRef = useRef<HTMLDivElement>(null);
+  const calloutLineRef = useRef<SVGLineElement>(null);
   const onFlownRef = useRef(onDemoFlown);
   onFlownRef.current = onDemoFlown;
   const terrainProvider = useMemo(() => new EllipsoidTerrainProvider(), []);
@@ -296,6 +481,7 @@ export default function CesiumGlobe({
         return body;
       })
       .then((body) => {
+        rememberOrbitTracks(body.id, body.tracks);
         setEncounter(body);
         setIndex(nearestSampleIndex(body.tracks.ours, body.tca));
         setPlaying(true);
@@ -310,6 +496,41 @@ export default function CesiumGlobe({
       });
     return () => controller.abort();
   }, [event]);
+
+  useEffect(() => {
+    const requests = contextOrbitRequests(board?.ranked ?? [], event?.id ?? null);
+    if (requests.length === 0) {
+      setKeptOrbits([]);
+      return undefined;
+    }
+    const controller = new AbortController();
+    let cancelled = false;
+    void loadOrbitTracks(requests, controller.signal).then((loaded) => {
+      if (!cancelled) setKeptOrbits(loaded);
+    });
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [board, event?.id]);
+
+  useEffect(() => {
+    if (!showDismissed) return undefined;
+    const requests = dismissedOrbitRequests(board?.dismissedIds ?? []);
+    if (requests.length === 0) {
+      setDismissedOrbits([]);
+      return undefined;
+    }
+    const controller = new AbortController();
+    let cancelled = false;
+    void loadOrbitTracks(requests, controller.signal).then((loaded) => {
+      if (!cancelled) setDismissedOrbits(loaded);
+    });
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [showDismissed, board]);
 
   useEffect(() => {
     if (!playing || !encounter) return undefined;
@@ -330,6 +551,25 @@ export default function CesiumGlobe({
     return () => window.clearInterval(id);
   }, []);
 
+  useEffect(() => {
+    const fade = window.setTimeout(() => {
+      hintGoneRef.current = true;
+      setHintVisible(false);
+    }, 3600);
+    const hide = window.setTimeout(() => setShowHint(false), 4300);
+    return () => {
+      window.clearTimeout(fade);
+      window.clearTimeout(hide);
+    };
+  }, []);
+
+  function dismissHint() {
+    if (hintGoneRef.current) return;
+    hintGoneRef.current = true;
+    setHintVisible(false);
+    window.setTimeout(() => setShowHint(false), 400);
+  }
+
   const approach = approachFor(event, evaluatedAt);
   const remaining =
     event && evaluatedAt && tick !== null && startedAt !== null
@@ -338,12 +578,18 @@ export default function CesiumGlobe({
           countdownClockMs(Date.parse(event.tca), tick, Date.parse(evaluatedAt), tick - startedAt),
         )
       : "";
-  const label = event
-    ? `${event.other.name}\n${formatRange(event.rangeKm)} · ${event.relSpeedKms.toFixed(3)} km/s${
-        approach ? `\n${approach.label}` : ""
-      }${remaining ? `\n${remaining}` : ""}`
-    : "";
-  labelRef.current = label;
+  tracksRef.current = encounter
+    ? [...encounter.tracks.ours, ...encounter.tracks.other].map(toCartesian)
+    : [];
+  const contextOrbits = useMemo(
+    () => (showDismissed ? [...keptOrbits, ...dismissedOrbits] : keptOrbits),
+    [showDismissed, keptOrbits, dismissedOrbits],
+  );
+  const otherColor = event ? threatOrbitColor(event.tier) : "#ff5d6c";
+  const legendThreats = (board?.ranked ?? (event ? [event] : [])).slice(0, 4);
+  const hiddenThreats = (board?.ranked.length ?? 0) - legendThreats.length;
+  const tcaSample = encounter?.tracks.ours[tcaIndex] ?? null;
+  const tcaPosition = tcaSample ? toCartesian(tcaSample) : null;
   const demoPair = event?.ours.noradId === DEMO_NORAD && event?.other.noradId === DEMO_ENCOUNTER_NORAD;
   const notifyFlown = () => {
     if (demoPair) onFlownRef.current?.();
@@ -357,7 +603,12 @@ export default function CesiumGlobe({
           {event ? `${event.ours.name} · ${event.other.name}` : "Natural Earth"}
         </span>
       </header>
-      <div className="relative min-h-0 flex-1">
+      <div
+        ref={stageRef}
+        className="relative min-h-0 flex-1 overflow-hidden"
+        onPointerDown={dismissHint}
+        onWheel={dismissHint}
+      >
         {baseLayer ? (
           <Viewer
             full
@@ -382,18 +633,102 @@ export default function CesiumGlobe({
                 other={encounter.tracks.other}
                 index={index}
                 tcaIndex={tcaIndex}
-                labelRef={labelRef}
                 flyToken={flyToken}
+                otherColor={otherColor}
+                context={contextOrbits}
                 onFlown={notifyFlown}
               />
             )}
+            <ViewerHandle viewerRef={viewerRef} />
+            <GlobeNavigation rootRef={stageRef} />
+            <EncounterCallout
+              position={tcaPosition}
+              hostRef={calloutHostRef}
+              labelRef={calloutLabelRef}
+              lineRef={calloutLineRef}
+            />
           </Viewer>
         ) : (
           <p className="px-4 py-6 text-sm text-muted">Loading globe…</p>
         )}
-        <div className="pointer-events-none absolute top-3 left-3 flex flex-col gap-1 text-[11px]">
-          <span className="text-accent">cyan · ours</span>
-          <span className="text-act">red · other object</span>
+        <div ref={calloutHostRef} className="pointer-events-none absolute inset-0 z-[1] overflow-hidden">
+          <svg className="absolute inset-0 h-full w-full" aria-hidden="true">
+            <line ref={calloutLineRef} stroke="#d7e6ee" strokeWidth="1" opacity="0" />
+          </svg>
+          {event && (
+            <div
+              ref={calloutLabelRef}
+              className="absolute top-0 left-0 max-w-[15rem] rounded border border-white/15 bg-[#07131a]/92 px-2 py-1 text-[12px] leading-tight text-foreground"
+              style={{ opacity: 0 }}
+            >
+              <p className="font-medium">{event.other.name}</p>
+              <p className="font-mono text-[11px]">
+                {formatRange(event.rangeKm)} · {event.relSpeedKms.toFixed(3)} km/s
+              </p>
+              {approach && <p className="text-[11px]">{approach.label}</p>}
+              {remaining && <p className="font-mono text-[11px]">{remaining}</p>}
+            </div>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            const viewer = viewerRef.current;
+            if (!viewer || viewer.isDestroyed()) return;
+            flyToTracks(viewer.camera, tracksRef.current, 1.3);
+          }}
+          className="absolute bottom-[4.6rem] left-3 z-[2] flex items-center gap-1 rounded border border-edge/80 bg-background/75 px-2 py-1 text-[11px] text-muted hover:text-foreground"
+        >
+          <svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true" className="shrink-0">
+            <path
+              d="M8 2.6a5.4 5.4 0 1 1-4.5 2.4"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.4"
+              strokeLinecap="round"
+            />
+            <path
+              d="M3.1 2.2v3.2h3.2"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          Reset view
+        </button>
+        {(board?.dismissedIds.length ?? 0) > 0 && (
+          <button
+            type="button"
+            aria-pressed={showDismissed}
+            onClick={() => setShowDismissed((value) => !value)}
+            className={`absolute bottom-[6.6rem] left-3 z-[2] rounded border px-2 py-1 text-[11px] ${
+              showDismissed
+                ? "border-edge/80 bg-background/75 text-foreground"
+                : "border-transparent bg-background/45 text-muted hover:text-foreground"
+            }`}
+          >
+            Show dismissed
+          </button>
+        )}
+        {showHint && (
+          <p
+            className={`pointer-events-none absolute bottom-16 left-1/2 z-[2] -translate-x-1/2 rounded bg-background/80 px-2 py-1 text-[11px] whitespace-nowrap text-muted transition-opacity duration-500 ${
+              hintVisible ? "opacity-100" : "opacity-0"
+            }`}
+          >
+            Drag to rotate · Scroll to zoom
+          </p>
+        )}
+        <div className="pointer-events-none absolute top-3 left-3 z-[2] flex flex-col gap-1 text-[11px]">
+          <span className="font-medium text-accent">{board?.satelliteName ?? event?.ours.name ?? "Tracked satellite"}</span>
+          {legendThreats.map((item) => (
+            <span key={item.id} style={{ color: threatOrbitColor(item.tier) }}>
+              {item.other.name}
+            </span>
+          ))}
+          {hiddenThreats > 0 && <span className="text-muted">+{hiddenThreats}</span>}
           {event && encounter && (
             <span className="mt-1 rounded bg-background/90 px-2 py-1 font-mono text-xs leading-snug text-foreground">
               {approach ? (

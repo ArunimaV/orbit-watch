@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { propagateEncounter } from "@/lib/encounter";
 import { getOmm } from "@/lib/gp";
+import { findLookupEvent } from "@/lib/lookup";
 import { findEventById, loadConjunctionSource } from "@/lib/socrates";
 
 export const dynamic = "force-dynamic";
@@ -27,7 +28,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 
   try {
     const loaded = loadConjunctionSource();
-    const found = findEventById(loaded.snapshot, decoded);
+    const found = findEventById(loaded.snapshot, decoded) ?? findLookupEvent(decoded);
     if (!found) {
       return NextResponse.json({ error: "Unknown conjunction" }, { status: 404 });
     }

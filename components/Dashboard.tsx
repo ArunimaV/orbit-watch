@@ -7,6 +7,7 @@ import { VoicePanel } from "@/components/VoicePanel";
 import { VoicePreferenceProvider } from "@/components/VoicePreference";
 import { WarningList } from "@/components/WarningList";
 import { DEMO_NORAD } from "@/lib/constants";
+import type { GlobeBoard } from "@/lib/orbit-board";
 import type { RankedEvent } from "@/lib/types";
 
 export function Dashboard() {
@@ -21,6 +22,7 @@ export function Dashboard() {
     when: string | null;
     lead: RankedEvent | null;
   } | null>(null);
+  const [board, setBoard] = useState<GlobeBoard | null>(null);
 
   useEffect(() => {
     setStartedAt(Date.now());
@@ -50,8 +52,15 @@ export function Dashboard() {
           onEvaluated={setEvaluatedAt}
           startedAt={startedAt}
           onThreat={setThreat}
+          onBoard={setBoard}
         />
-        <Globe event={selected} evaluatedAt={evaluatedAt} startedAt={startedAt} onDemoFlown={() => setFlown(true)} />
+        <Globe
+          event={selected}
+          board={board}
+          evaluatedAt={evaluatedAt}
+          startedAt={startedAt}
+          onDemoFlown={() => setFlown(true)}
+        />
         <VoicePanel norad={norad} encounterId={selected?.id ?? null} evaluatedAt={evaluatedAt} />
       </div>
     </VoicePreferenceProvider>
