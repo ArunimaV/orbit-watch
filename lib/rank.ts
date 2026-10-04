@@ -142,7 +142,13 @@ function flagsFor(event: ConjunctionEvent, dseOurs: number | null, dseOther: num
   };
 }
 
-function dismissReason(event: ConjunctionEvent, tcaMs: number, nowMs: number, horizonMs: number): string | null {
+function dismissReason(
+  event: ConjunctionEvent,
+  tcaMs: number,
+  nowMs: number,
+  horizonMs: number,
+  keepPast = false,
+): string | null {
   if (event.relSpeedKms < CO_ORBIT_SPEED_KMS) return DISMISS.coOrbiting;
   if (
     event.maxProb !== null &&
@@ -151,7 +157,7 @@ function dismissReason(event: ConjunctionEvent, tcaMs: number, nowMs: number, ho
   ) {
     return DISMISS.lowProbability;
   }
-  if (tcaMs < nowMs) return DISMISS.alreadyHappened;
+  if (tcaMs < nowMs) return keepPast ? null : DISMISS.alreadyHappened;
   if (tcaMs > horizonMs) return DISMISS.outsideHorizon;
   return null;
 }
@@ -208,6 +214,11 @@ function pickRepresentative(group: Normalized[], nowMs: number, horizonMs: numbe
   );
 }
 
+export interface RankOptions {
+  /** Fixture demo: keep these NORAD ids even when their TCA is already past. */
+  preservePastNorads?: readonly number[];
+}
+
 /**
  * Rank conjunctions for one satellite.
  * `now` is the evaluation instant. Times inside events stay UTC.
@@ -218,6 +229,7 @@ export function rankConjunctions(
   ourNorad: number,
   now: Date,
   horizonHours = 24 * 7,
+  options: RankOptions = {},
 ): RankResult {
   const nowMs = now.getTime();
   const horizonMs = nowMs + horizonHours * 3_600_000;
@@ -252,7 +264,8 @@ export function rankConjunctions(
       }
     }
 
-    const reason = dismissReason(representative.event, representative.tcaMs, nowMs, horizonMs);
+    const keepPast = options.preservePastNorads?.includes(representative.otherNorad) ?? false;
+    const reason = dismissReason(representative.event, representative.tcaMs, nowMs, horizonMs, keepPast);
     if (reason) {
       addDismissed(reason, toExample(representative, passes));
       continue;

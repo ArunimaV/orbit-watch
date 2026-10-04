@@ -1,14 +1,18 @@
-import { DEFAULT_HORIZON_HOURS, KNOWN_SATELLITES } from "./constants";
+import { DEFAULT_HORIZON_HOURS, DEMO_ENCOUNTER_NORAD, KNOWN_SATELLITES } from "./constants";
+import { readDemoNow } from "./demo-clock";
 import { propagateEncounter, type TrackSample } from "./encounter";
 import { getOmm } from "./gp";
 import { findEventById, eventsForNorad, loadConjunctionSource } from "./socrates";
 import { rankConjunctions } from "./rank";
-import { formatLocalTime, safeTimeZone } from "./time-format";
+import { formatApproachTime, formatLocalTime, safeTimeZone } from "./time-format";
 import type { DismissedExample, DismissedGroup, RankedEvent } from "./types";
 import { isVoiceToolName } from "./voice-tool-schema";
 
 export interface VoiceToolOptions {
+  /** Explicit evaluation instant. Tests use this so they do not follow DEMO_NOW. */
   now?: Date;
+  /** Wall clock from the browser. Used for a live snapshot when `now` is unset. */
+  clientNow?: Date;
   horizonHours?: number;
   root?: string;
   offline?: boolean;
@@ -24,6 +28,7 @@ export interface VoiceContext {
   dismissed: DismissedGroup[];
   dismissedCount: number;
   source: "snapshot" | "fixture";
+  now: Date;
 }
 
 export function loadVoiceContext(norad: number, options: VoiceToolOptions = {}): VoiceContext {
@@ -33,7 +38,11 @@ export function loadVoiceContext(norad: number, options: VoiceToolOptions = {}):
   const horizonHours = options.horizonHours ?? DEFAULT_HORIZON_HOURS;
   const loaded = loadConjunctionSource(options.root);
   const events = eventsForNorad(loaded.snapshot, norad);
-  const result = rankConjunctions(events, norad, options.now ?? new Date(), horizonHours);
+  const fixture = loaded.source === "fixture";
+  const now = options.now ?? (fixture ? readDemoNow() : (options.clientNow ?? new Date()));
+  const result = rankConjunctions(events, norad, now, horizonHours, {
+    preservePastNorads: fixture ? [DEMO_ENCOUNTER_NORAD] : [],
+  });
   const known = KNOWN_SATELLITES[norad];
   const dismissedCount = result.dismissed.reduce((sum, group) => sum + group.count, 0);
   return {
@@ -46,6 +55,7 @@ export function loadVoiceContext(norad: number, options: VoiceToolOptions = {}):
     dismissed: result.dismissed,
     dismissedCount,
     source: loaded.source,
+    now,
   };
 }
 
@@ -73,7 +83,16 @@ function readZone(args: Record<string, unknown>): string {
   return safeTimeZone(typeof args.timeZone === "string" ? args.timeZone : undefined);
 }
 
-export function compactRanked(event: RankedEvent, timeZone: string) {
+function readClientNow(args: Record<string, unknown>): Date | undefined {
+  const value = args.clientNow;
+  if (typeof value !== "string" || !value.trim()) return undefined;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return undefined;
+  return parsed;
+}
+
+export function compactRanked(event: RankedEvent, timeZone: string, now: Date) {
+  const when = formatApproachTime(event.tca, timeZone, now);
   return {
     id: event.id,
     other: event.other.name,
@@ -85,7 +104,8 @@ export function compactRanked(event: RankedEvent, timeZone: string) {
     relSpeedKms: event.relSpeedKms,
     maxProb: event.maxProb,
     tcaUtc: event.tca,
-    tcaLocal: formatLocalTime(event.tca, timeZone),
+    tcaLocal: when.label,
+    tcaSpeech: when.speech,
     stale: event.flags.stale,
     staleDays: event.flags.staleDays,
     diluted: event.flags.diluted,
@@ -93,20 +113,25 @@ export function compactRanked(event: RankedEvent, timeZone: string) {
   };
 }
 
-function compactDismissed(group: DismissedGroup) {
+function compactDismissed(group: DismissedGroup, timeZone: string, now: Date) {
   return {
     reason: group.reason,
     count: group.count,
-    examples: group.examples.slice(0, 3).map((example) => ({
-      id: example.id,
-      other: example.otherName,
-      otherNorad: example.otherNorad,
-      missMeters: Math.round(example.rangeKm * 1000),
-      relSpeedKms: example.relSpeedKms,
-      tcaUtc: example.tca,
-      passes: example.passes,
-      detail: example.detail ?? null,
-    })),
+    examples: group.examples.slice(0, 3).map((example) => {
+      const when = formatApproachTime(example.tca, timeZone, now);
+      return {
+        id: example.id,
+        other: example.otherName,
+        otherNorad: example.otherNorad,
+        missMeters: Math.round(example.rangeKm * 1000),
+        relSpeedKms: example.relSpeedKms,
+        tcaUtc: example.tca,
+        tcaLocal: when.label,
+        tcaSpeech: when.speech,
+        passes: example.passes,
+        detail: example.detail ?? null,
+      };
+    }),
   };
 }
 
@@ -119,8 +144,9 @@ function rankedPayload(context: VoiceContext, timeZone: string) {
     screened: context.totalEvents,
     kept: context.ranked.length,
     dismissedCount: context.dismissedCount,
-    ranked: context.ranked.slice(0, 8).map((event) => compactRanked(event, timeZone)),
-    dismissed: context.dismissed.map(compactDismissed),
+    evaluatedAt: context.now.toISOString(),
+    ranked: context.ranked.slice(0, 8).map((event) => compactRanked(event, timeZone, context.now)),
+    dismissed: context.dismissed.map((group) => compactDismissed(group, timeZone, context.now)),
     timeZone,
   };
 }
@@ -179,7 +205,8 @@ async function encounterPayload(id: string, timeZone: string, options: VoiceTool
     relSpeedKms: event.relSpeedKms,
     maxProb: event.maxProb,
     tcaUtc: event.tca,
-    tcaLocal: formatLocalTime(event.tca, timeZone),
+    tcaLocal: formatApproachTime(event.tca, timeZone, context.now).label,
+    tcaSpeech: formatApproachTime(event.tca, timeZone, context.now).speech,
     tier: located.ranked?.tier ?? null,
     score: located.ranked ? Math.round(located.ranked.score * 10) / 10 : null,
     stale: located.ranked?.flags.stale ?? false,
@@ -205,7 +232,7 @@ async function encounterPayload(id: string, timeZone: string, options: VoiceTool
       propagation: {
         altitudeKm: altitudeAt(propagation.ours, event.tca),
         computedMissKm: propagation.computedMinRangeKm,
-        computedMissTimeLocal: formatLocalTime(propagation.computedMinRangeTime, timeZone),
+        computedMissTimeLocal: formatLocalTime(propagation.computedMinRangeTime, timeZone, context.now),
       },
       note: fixture
         ? "Element sets are fixtures, so the computed miss will not match the screening miss. Cite the screening miss distance."
@@ -227,13 +254,17 @@ export async function runVoiceTool(
   }
   const args = readArgs(rawArgs);
   const timeZone = readZone(args);
+  const toolOptions: VoiceToolOptions = {
+    ...options,
+    clientNow: options.clientNow ?? readClientNow(args),
+  };
 
   try {
     if (name === "get_ranked_warnings") {
-      return rankedPayload(loadVoiceContext(readNorad(args), options), timeZone);
+      return rankedPayload(loadVoiceContext(readNorad(args), toolOptions), timeZone);
     }
     if (name === "explain_dismissed") {
-      const context = loadVoiceContext(readNorad(args), options);
+      const context = loadVoiceContext(readNorad(args), toolOptions);
       const payload = rankedPayload(context, timeZone);
       return {
         norad: payload.norad,
@@ -245,10 +276,10 @@ export async function runVoiceTool(
       };
     }
     if (name === "get_encounter") {
-      return encounterPayload(readId(args), timeZone, options);
+      return encounterPayload(readId(args), timeZone, toolOptions);
     }
     const id = readId(args);
-    const details = await encounterPayload(id, timeZone, options);
+    const details = await encounterPayload(id, timeZone, toolOptions);
     if (details && typeof details === "object" && "error" in details) return details;
     return { ...details, focus: true, id };
   } catch (error) {

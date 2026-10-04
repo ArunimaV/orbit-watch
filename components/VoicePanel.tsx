@@ -26,12 +26,26 @@ function lineId(): string {
   return crypto.randomUUID();
 }
 
+function listenerZone(): string {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+}
+
+function briefingClock(evaluatedAt: string | null): Date {
+  if (evaluatedAt) {
+    const parsed = new Date(evaluatedAt);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+  }
+  return new Date();
+}
+
 export function VoicePanel({
   norad,
   encounterId,
+  evaluatedAt,
 }: {
   norad: number;
   encounterId: string | null;
+  evaluatedAt: string | null;
 }) {
   const [lines, setLines] = useState<TranscriptLine[]>([]);
   const [configured, setConfigured] = useState<boolean | null>(null);
@@ -40,6 +54,7 @@ export function VoicePanel({
   const [connected, setConnected] = useState(false);
   const [briefing, setBriefing] = useState(false);
   const [render, setRender] = useState<RenderState | null>(null);
+  const [renderPending, setRenderPending] = useState(false);
   const [renderOpen, setRenderOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -74,13 +89,17 @@ export function VoicePanel({
   useEffect(() => {
     if (!encounterId) {
       setRender(null);
+      setRenderPending(false);
       return;
     }
     const controller = new AbortController();
+    setRender(null);
+    setRenderPending(true);
     fetch(`/api/imagine/${encodeURIComponent(encounterId)}`, { signal: controller.signal })
       .then(async (response) => (await response.json()) as RenderState)
       .then((body) => {
         if (typeof body.url === "string") setRender(body);
+        setRenderPending(false);
       })
       .catch((cause: unknown) => {
         if (cause instanceof DOMException && cause.name === "AbortError") return;
@@ -89,6 +108,7 @@ export function VoicePanel({
           source: "fallback",
           message: "Could not load a rendering. Showing the committed SwissCube pass.",
         });
+        setRenderPending(false);
       });
     return () => controller.abort();
   }, [encounterId]);
@@ -129,7 +149,8 @@ export function VoicePanel({
         name,
         arguments: {
           ...args,
-          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          timeZone: listenerZone(),
+          clientNow: new Date().toISOString(),
         },
       }),
     });
@@ -163,7 +184,7 @@ export function VoicePanel({
         if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(payload));
       },
       executeTool,
-      instructions: voiceInstructions(Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"),
+      instructions: voiceInstructions(listenerZone(), briefingClock(evaluatedAt)),
       onAssistantDelta: (delta) => {
         if (!grokLineRef.current) grokLineRef.current = pushLine("grok", delta);
         else {
@@ -286,7 +307,8 @@ export function VoicePanel({
         body: JSON.stringify({
           norad,
           encounterId,
-          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          timeZone: listenerZone(),
+          clientNow: new Date().toISOString(),
         }),
       });
       const body = (await response.json()) as {
@@ -336,7 +358,8 @@ export function VoicePanel({
           ))}
         </div>
 
-        {render && (
+        {renderPending && <p className="mt-4 text-[11px] text-muted">Generating render…</p>}
+        {render && !renderPending && (
           <button type="button" onClick={() => setRenderOpen(true)} className="mt-4 block w-full text-left">
             <Image
               src={render.url}

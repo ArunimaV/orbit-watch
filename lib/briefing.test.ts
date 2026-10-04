@@ -20,9 +20,32 @@ describe("createBriefing", () => {
     expect(briefing.text).toMatch(/SL-8 DEB/);
     expect(briefing.text).toMatch(/621 meters/);
     expect(briefing.text).toMatch(/13\.9 kilometers per second/);
-    expect(briefing.text).toMatch(/dismissed/i);
-    expect(briefing.text).toMatch(/co-orbiting/i);
+    expect(briefing.text).toMatch(/BEESAT-1 is just flying alongside you/);
+    expect(briefing.text).toMatch(/one threat/);
+    expect(briefing.text.split(/\s+/).length).toBeLessThanOrEqual(60);
     expect(briefing.message).toMatch(/XAI_API_KEY/);
+  });
+
+  it("says tonight at 9:26 PM when the fixture clock is the demo default", async () => {
+    const previous = process.env.DEMO_NOW;
+    delete process.env.DEMO_NOW;
+    try {
+      const briefing = await createBriefing({
+        norad: 35932,
+        timeZone: "America/New_York",
+        apiKey: null,
+        toolOptions: { offline: true },
+      });
+      expect(briefing.text).toMatch(/tonight at 9:26 PM EDT/);
+      expect(briefing.text).toMatch(/2026-10-05 01:26 UTC/);
+      expect(briefing.text).toMatch(/621 meters/);
+      expect(briefing.text).toMatch(/BEESAT-1 is just flying alongside you/);
+      expect(briefing.text).not.toMatch(/Docked or co-orbiting/);
+      expect(briefing.text.split(/\s+/).length).toBeLessThanOrEqual(60);
+    } finally {
+      if (previous === undefined) delete process.env.DEMO_NOW;
+      else process.env.DEMO_NOW = previous;
+    }
   });
 
   it("uses grok-4.7 text when the responses call succeeds", async () => {

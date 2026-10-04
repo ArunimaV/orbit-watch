@@ -2,7 +2,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { COMMITTED_RENDER_URL, DEMO_ENCOUNTER_ID, imaginePromptFor, resolveEncounterRender } from "./imagine";
+import { COMMITTED_RENDER_URL, DEMO_ENCOUNTER_ID, RENDER_TMP_DIR, imaginePromptFor, resolveEncounterRender } from "./imagine";
 import { IMAGES_URL } from "./xai-config";
 
 describe("resolveEncounterRender", () => {
@@ -11,6 +11,7 @@ describe("resolveEncounterRender", () => {
   afterEach(() => {
     for (const root of roots) fs.rmSync(root, { recursive: true, force: true });
     roots.length = 0;
+    fs.rmSync(path.join(RENDER_TMP_DIR, "35932-19831-readonly.jpg"), { force: true });
   });
 
   function tempRoot(): string {
@@ -94,6 +95,57 @@ describe("resolveEncounterRender", () => {
     const second = await resolveEncounterRender(id, { root, apiKey: "server-key", fetchImpl });
     expect(second.source).toBe("cache");
     expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("writes the cache under tmp when public/renders is not a directory", async () => {
+    const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xd9, 1, 2, 3, 4]);
+    const fetchImpl = vi.fn(async (url: string) => {
+      if (url === IMAGES_URL) {
+        return Response.json({ data: [{ url: "https://cdn.example.test/temp.jpg" }] });
+      }
+      return new Response(jpeg, { status: 200, headers: { "content-type": "image/jpeg" } });
+    });
+    const root = tempRoot();
+    fs.mkdirSync(path.join(root, "public"), { recursive: true });
+    fs.writeFileSync(path.join(root, "public", "renders"), "not-a-directory");
+    const id = "35932-19831-readonly";
+    const first = await resolveEncounterRender(id, { root, apiKey: "server-key", fetchImpl });
+    expect(first).toMatchObject({ url: `/api/renders/${id}`, source: "generated", cached: false });
+    const saved = fs.readFileSync(path.join(RENDER_TMP_DIR, `${id}.jpg`));
+    expect(Array.from(saved)).toEqual(Array.from(jpeg));
+
+    fetchImpl.mockClear();
+    const second = await resolveEncounterRender(id, { root, apiKey: "server-key", fetchImpl });
+    expect(second.source).toBe("cache");
+    expect(second.url).toBe(`/api/renders/${id}`);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("keeps a generated image in memory when the cache write fails", async () => {
+    const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xd9, 1, 2, 3, 4]);
+    const fetchImpl = vi.fn(async (url: string) => {
+      if (url === IMAGES_URL) {
+        return Response.json({ data: [{ url: "https://cdn.example.test/temp.jpg" }] });
+      }
+      return new Response(jpeg, { status: 200, headers: { "content-type": "image/jpeg" } });
+    });
+    const root = tempRoot();
+    const originalWrite = fs.writeFileSync;
+    const write = vi.spyOn(fs, "writeFileSync").mockImplementation(((file, data, options) => {
+      const target = String(file);
+      if (target.endsWith(".jpg") || target.endsWith(".jpg.tmp")) {
+        throw new Error("EROFS: read-only file system");
+      }
+      return originalWrite(file, data, options);
+    }) as typeof fs.writeFileSync);
+    try {
+      const id = "35932-19831-20261007T000000000Z";
+      const result = await resolveEncounterRender(id, { root, apiKey: "server-key", fetchImpl });
+      expect(result).toMatchObject({ url: `/api/renders/${id}`, source: "generated", cached: false });
+      expect(result.url).not.toBe(COMMITTED_RENDER_URL);
+    } finally {
+      write.mockRestore();
+    }
   });
 
   it("does not retry a failed generation and shows the committed render", async () => {

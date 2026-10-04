@@ -1,5 +1,6 @@
 import { DEMO_NORAD } from "./constants";
-import { formatLocalTime } from "./time-format";
+import { DISMISS } from "./rank";
+import { formatApproachTime } from "./time-format";
 import { readXaiApiKey, requestTextBrief } from "./xai";
 import { MISSING_KEY_MESSAGE } from "./xai-config";
 import { loadVoiceContext, type VoiceContext, type VoiceToolOptions } from "./voice-tools";
@@ -14,31 +15,39 @@ export interface Briefing {
   encounterId: string | null;
 }
 
+function falseAlarmSentence(context: VoiceContext): string {
+  const coOrbit = context.dismissed.find((group) => group.reason === DISMISS.coOrbiting);
+  const low = context.dismissed.find((group) => group.reason === DISMISS.lowProbability);
+  const parts: string[] = [];
+  const companion = coOrbit?.examples[0]?.otherName;
+  if (companion) parts.push(`${companion} is just flying alongside you`);
+  if (low) parts.push("the other far misses are too unlikely to matter");
+  else if (!companion && context.dismissedCount > 0) {
+    parts.push("the rest are false alarms");
+  }
+  if (parts.length === 0) return "";
+  const sentence = parts.join(", and ");
+  return sentence.charAt(0).toUpperCase() + sentence.slice(1) + ".";
+}
+
 export function localBriefing(context: VoiceContext, timeZone: string, encounterId?: string | null): string {
   const picked =
     (encounterId ? context.ranked.find((event) => event.id === encounterId) : undefined) ?? context.ranked[0] ?? null;
-  const dismissedSentence =
-    context.dismissed.length === 0
-      ? "nothing was dismissed"
-      : context.dismissed.map((group) => `${group.count} as ${group.reason}`).join("; ");
 
   if (!picked) {
-    return `I checked ${context.totalEvents} warnings for ${context.satelliteName}. None stayed on the list. ${context.dismissedCount} were dismissed: ${dismissedSentence}. This is triage, not a maneuver order.`;
+    return `Nothing on the list for ${context.satelliteName} needs a look right now. This is not a maneuver order.`;
   }
 
   const meters = Math.round(picked.rangeKm * 1000).toLocaleString("en-US");
-  const when = formatLocalTime(picked.tca, timeZone);
-  const stale =
-    picked.flags.stale && picked.flags.staleDays !== null
-      ? ` Orbit data is about ${picked.flags.staleDays.toFixed(1)} days old at closest approach, so treat this as a heads-up.`
-      : "";
+  const when = formatApproachTime(picked.tca, timeZone, context.now);
+  const stale = picked.flags.stale ? " The orbit data is old, so treat this as a heads-up." : "";
+  const alarms = falseAlarmSentence(context);
 
   return [
-    `${picked.other.name} is the warning to look at for ${context.satelliteName}.`,
-    `Closest approach is ${when}, about ${meters} meters, at ${picked.relSpeedKms.toFixed(1)} kilometers per second.`,
-    stale.trim(),
-    `I dismissed ${context.dismissedCount} of ${context.totalEvents}: ${dismissedSentence}.`,
-    "Next step: tell the team and confirm registration for official warnings. This is not a maneuver order.",
+    `${picked.other.name} is the one threat for ${context.satelliteName}.`,
+    `Closest approach is ${when.speech} (${when.utc}), about ${meters} meters, at ${picked.relSpeedKms.toFixed(1)} kilometers per second.${stale}`,
+    alarms,
+    "Tell the team. This is not a maneuver order.",
   ]
     .filter(Boolean)
     .join(" ");
@@ -55,22 +64,27 @@ function briefPrompt(context: VoiceContext, timeZone: string, encounterId?: stri
       count: group.count,
       examples: group.examples.slice(0, 2).map((example) => example.otherName),
     })),
-    ranked: context.ranked.slice(0, 5).map((event) => ({
-      id: event.id,
-      other: event.other.name,
-      tier: event.tier,
-      missMeters: Math.round(event.rangeKm * 1000),
-      relSpeedKms: event.relSpeedKms,
-      tcaLocal: formatLocalTime(event.tca, timeZone),
-      stale: event.flags.stale,
-      staleDays: event.flags.staleDays,
-    })),
+    ranked: context.ranked.slice(0, 5).map((event) => {
+      const when = formatApproachTime(event.tca, timeZone, context.now);
+      return {
+        id: event.id,
+        other: event.other.name,
+        tier: event.tier,
+        missMeters: Math.round(event.rangeKm * 1000),
+        relSpeedKms: event.relSpeedKms,
+        tcaLocal: when.label,
+        tcaSpeech: when.speech,
+        tcaUtc: when.utc,
+        stale: event.flags.stale,
+        staleDays: event.flags.staleDays,
+      };
+    }),
     highlightId: encounterId ?? context.ranked[0]?.id ?? null,
   };
 
-  return `${voiceInstructions(timeZone)}
+  return `${voiceInstructions(timeZone, context.now)}
 
-Write the spoken briefing now, using only the JSON below. Plain sentences. No markdown, no bullet list.
+Write the spoken briefing now, using only the JSON below. Under 60 words. Plain sentences. No markdown, no bullet list, and no filter labels.
 ${JSON.stringify(data)}`;
 }
 
@@ -104,6 +118,7 @@ export async function createBriefing(input: {
     fetchImpl: input.fetchImpl,
   });
   if (!grok.ok) {
+    console.error("[orbit-watch] text briefing failed:", grok.message);
     return {
       text: local,
       source: "local",

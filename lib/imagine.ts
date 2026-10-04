@@ -1,4 +1,5 @@
 import fs from "fs";
+import os from "os";
 import path from "path";
 import { DEMO_ENCOUNTER_NORAD, DEMO_NORAD } from "./constants";
 import { findEventById, loadConjunctionSource, makeEventId } from "./socrates";
@@ -22,11 +23,73 @@ export interface RenderResult {
 }
 
 const inflight = new Map<string, Promise<RenderResult>>();
+const memoryRenders = new Map<string, Buffer>();
+
+export function readMemoryRender(id: string): Buffer | null {
+  return memoryRenders.get(id) ?? null;
+}
 
 export function sanitizeEncounterId(id: string): string | null {
   const trimmed = id.trim();
   if (!/^[A-Za-z0-9._-]{1,180}$/.test(trimmed)) return null;
   return trimmed;
+}
+
+export const RENDER_TMP_DIR = path.join(os.tmpdir(), "orbit-watch-renders");
+
+function canWriteDir(dir: string): boolean {
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+    const probe = path.join(dir, `.write-probe-${process.pid}`);
+    fs.writeFileSync(probe, "ok");
+    fs.unlinkSync(probe);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Writable public/renders when the disk allows it; otherwise /tmp, served by /api/renders. */
+export function chooseRenderCache(root: string): { dir: string | null; url: (id: string) => string } {
+  const pub = path.join(root, "public", "renders");
+  if (canWriteDir(pub)) return { dir: pub, url: (id) => `/renders/${id}.jpg` };
+  if (canWriteDir(RENDER_TMP_DIR)) return { dir: RENDER_TMP_DIR, url: (id) => `/api/renders/${id}` };
+  return { dir: null, url: (id) => `/api/renders/${id}` };
+}
+
+function persistGenerated(id: string, bytes: Uint8Array, root: string): string {
+  const cache = chooseRenderCache(root);
+  if (cache.dir) {
+    const cachedPath = path.join(cache.dir, `${id}.jpg`);
+    const tempPath = `${cachedPath}.tmp`;
+    try {
+      fs.mkdirSync(cache.dir, { recursive: true });
+      fs.writeFileSync(tempPath, bytes);
+      fs.renameSync(tempPath, cachedPath);
+      return cache.url(id);
+    } catch (error) {
+      try {
+        fs.rmSync(tempPath, { force: true });
+      } catch {
+        // The temp file may already be gone.
+      }
+      const message = error instanceof Error ? error.message : "cache write failed";
+      console.error("[orbit-watch] render cache write failed; keeping the image in memory:", id, message);
+    }
+  } else {
+    console.error("[orbit-watch] render cache is not writable; keeping the image in memory:", id);
+  }
+  memoryRenders.set(id, Buffer.from(bytes));
+  return `/api/renders/${id}`;
+}
+
+function findCachedRender(id: string, root: string): { url: string } | null {
+  const pub = path.join(root, "public", "renders", `${id}.jpg`);
+  if (fs.existsSync(pub)) return { url: `/renders/${id}.jpg` };
+  const tmp = path.join(RENDER_TMP_DIR, `${id}.jpg`);
+  if (fs.existsSync(tmp)) return { url: `/api/renders/${id}` };
+  if (memoryRenders.has(id)) return { url: `/api/renders/${id}` };
+  return null;
 }
 
 const PHOTO_STYLE =
@@ -99,11 +162,9 @@ async function resolveUncached(
   options: { root?: string; apiKey?: string | null; fetchImpl?: typeof fetch },
 ): Promise<RenderResult> {
   const root = options.root ?? process.cwd();
-  const rendersDir = path.join(root, "public/renders");
-  const cachedPath = path.join(rendersDir, `${id}.jpg`);
-
-  if (fs.existsSync(cachedPath)) {
-    return { url: `/renders/${id}.jpg`, source: "cache", cached: true, mock: false, id };
+  const cached = findCachedRender(id, root);
+  if (cached) {
+    return { url: cached.url, source: "cache", cached: true, mock: false, id };
   }
 
   if (id === DEMO_ENCOUNTER_ID) {
@@ -124,12 +185,12 @@ async function resolveUncached(
     fetchImpl: options.fetchImpl,
   });
   if (!generated.ok) {
+    if (generated.message !== MISSING_KEY_MESSAGE) {
+      console.error("[orbit-watch] imagine failed:", generated.message);
+    }
     return committedResult(id, "fallback", `${generated.message} Showing the committed SwissCube and SL-8 debris render.`);
   }
 
-  fs.mkdirSync(rendersDir, { recursive: true });
-  const tempPath = `${cachedPath}.tmp`;
-  fs.writeFileSync(tempPath, generated.image.bytes);
-  fs.renameSync(tempPath, cachedPath);
-  return { url: `/renders/${id}.jpg`, source: "generated", cached: false, mock: false, id };
+  const url = persistGenerated(id, generated.image.bytes, root);
+  return { url, source: "generated", cached: false, mock: false, id };
 }

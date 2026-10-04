@@ -23,6 +23,7 @@ Copy `.env.example` to `.env.local` and set `XAI_API_KEY` for live voice, briefs
 | `XAI_API_KEY` | No | Server-only key for voice, `/v1/responses`, TTS, and Imagine. Never ship it to the browser. |
 | `NEXT_PUBLIC_CESIUM_ION_TOKEN` | No | Unused. The globe uses the Natural Earth II imagery shipped with Cesium, not Cesium ion. |
 | `ORBIT_WATCH_OFFLINE` | No | Set to `1` to skip CelesTrak and serve `data/fixtures/` only. |
+| `DEMO_NOW` | No | Fixture-mode clock, ISO. Empty uses `2026-10-04T16:00:00Z` (noon US Eastern on Oct 4) so ranking and “tonight” stay stable. |
 
 `npm run ingest` checks SOCRATES `jsonDir.php` (at most once an hour) and downloads the CSV only when `FILE_MTIME` changes. Any non-200 response stops the script. There are no retries.
 
@@ -36,6 +37,8 @@ Orbit Watch follows the [CelesTrak usage policy](https://celestrak.org/usage-pol
 - Poll `jsonDir.php` no more than once an hour, and download the screen only when `FILE_MTIME` changes.
 - Refetch a GP element set only when the cache is older than two hours.
 - Stop on the first non-200 response, including redirects. Log it. Do not retry.
+
+While the API is serving the fixture, ranking uses `DEMO_NOW` (default `2026-10-04T16:00:00Z`). That is noon US Eastern on Sunday, Oct 4, so the SL-8 DEB pass at 9:26 PM EDT reads as tonight. In fixture mode that pass is kept even if the clock is after the TCA, so a judge opening the app later still sees the demo warning. A live snapshot uses the browser's clock instead. Set `DEMO_NOW` to another ISO instant to move the fixture clock.
 
 Data courtesy of [CelesTrak](https://celestrak.org/) (Dr. T.S. Kelso).
 
@@ -73,21 +76,31 @@ Stale data (`max(DSE) > 3` days) and dilution (dilution larger than the miss) ar
 
 ## Globe
 
-`npm install` copies Cesium's Workers, Assets, Widgets, and ThirdParty into `public/cesium` (gitignored). The viewer is loaded with `next/dynamic` and `ssr: false`. Imagery is the bundled Natural Earth II tiles. Terrain is the WGS84 ellipsoid, so the app does not call Cesium ion.
+`npm install`, `npm run build`, and `next build` all copy `Cesium.js` plus Workers, Assets, Widgets, and ThirdParty into `public/cesium` (gitignored). The Next.js config runs that copy when it loads, so Vercel's Next.js preset (`next build`, not `npm run build`) still publishes `/cesium/Cesium.js` and the worker and imagery files. The copy fails if `node_modules/cesium/Build/Cesium/Cesium.js` is missing. The viewer is loaded with `next/dynamic` and `ssr: false`. Imagery is the bundled Natural Earth II tiles. Terrain is the WGS84 ellipsoid, so the app does not call Cesium ion.
 
-On load the SwissCube vs SL-8 DEB card is selected. The camera flies to the pair. Both tracks are the encounter API's samples from TCA−15 min to TCA+15 min. A pulsing marker sits on SwissCube's TCA sample and labels the SOCRATES miss and relative speed. Play/pause and the scrubber step those samples. A card whose other object has no committed GP file shows an error on the globe instead of a track.
+On load the SwissCube vs SL-8 DEB card is selected. The camera flies to the pair. Both tracks are the encounter API's samples from TCA−15 min to TCA+15 min. A pulsing marker sits on SwissCube's TCA sample and labels the SOCRATES miss, relative speed, and the closest approach in the viewer's local time. Play/pause and the scrubber step those samples. A card whose other object has no committed GP file shows an error on the globe instead of a track.
 
 ## API
 
-- `GET /api/conjunctions?norad=35932&horizon=168` — ranked cards plus `dismissed: N` grouped by reason.
+- `GET /api/conjunctions?norad=35932&horizon=168` — ranked cards plus `dismissed: N` grouped by reason. `now` is the evaluation clock (the demo clock in fixture mode).
 - `GET /api/encounter/[id]` — both OMMs through `json2satrec`, positions every 10 s from TCA−15 min to TCA+15 min, ECI then ECF then geodetic, and this app's own minimum separation.
 - `POST /api/voice/token` — mints an ephemeral realtime client secret (`value`, `expires_at` only). `GET` reports whether a key is set and does not mint.
 - `POST /api/voice/tools` — `get_ranked_warnings`, `get_encounter`, `explain_dismissed`, `focus_encounter`.
 - `POST /api/brief` — grok-4.7 briefing, or the ranker text when the key or the API is missing.
 - `POST /api/tts` — Eve, English, `audio/mpeg`.
-- `GET /api/imagine/[id]` — cached JPEG, or the committed `public/renders/swisscube-sl8deb.jpg` for the SwissCube / SL-8 pass and as the fallback.
+- `GET /api/imagine/[id]` — cached JPEG, or the committed `public/renders/swisscube-sl8deb.jpg` for the SwissCube / SL-8 pass and as the fallback. New images are written to `public/renders` when that directory is writable, otherwise to `/tmp/orbit-watch-renders` and served from `GET /api/renders/[id]`. If the write fails, the committed JPEG is returned.
 
 `focus_encounter` dispatches `window` event `orbitwatch:focus` with `{ id }`. The warning list selects that card, and the globe flies to it even when that card was already selected. The same selection loads the Imagine render onto the globe.
+
+## Deploy to Vercel
+
+The Vercel project can keep the Next.js preset. That preset runs `next build`, which does not run the npm `build` or `prebuild` scripts. `next.config.ts` copies `node_modules/cesium/Build/Cesium` into `public/cesium` as soon as the config loads, including `Cesium.js`, Workers, Assets, Widgets, and ThirdParty. `npm install` (postinstall) and `npm run build` run the same copy. The files are gitignored, so they have to be created on the build machine. The script exits if `Cesium.js` or the Natural Earth II tiles are missing after the copy.
+
+Set `XAI_API_KEY` in the Vercel project for live voice, briefs, and new images. Leave it unset for mock mode: Brief me still reads the ranker, and the image is the committed render.
+
+`DEMO_NOW` defaults to `2026-10-04T16:00:00Z` while the app is serving the fixture, so SL-8 DEB stays listed and reads as tonight in US Eastern during judging (about 12:30–2:30 PM ET on Oct 4). `ORBIT_WATCH_OFFLINE=1` forces the fixtures.
+
+Generated images go to `public/renders` when that directory is writable. On a read-only filesystem the cache is written to `/tmp/orbit-watch-renders` and served by `/api/renders/[id]`. If that write also fails, the generated bytes stay in memory and are still served from `/api/renders/[id]`. The committed `public/renders/swisscube-sl8deb.jpg` is the SwissCube / SL-8 default and the fallback when generation itself fails. `/api/imagine/[id]` allows 60 seconds for that call.
 
 ## Credits
 

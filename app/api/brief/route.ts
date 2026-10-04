@@ -3,6 +3,14 @@ import { createBriefing } from "@/lib/briefing";
 import { DEMO_NORAD } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
+
+function parseClientNow(value: unknown): Date | undefined {
+  if (typeof value !== "string" || !value.trim()) return undefined;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return undefined;
+  return parsed;
+}
 
 export async function POST(request: Request) {
   let body: unknown = {};
@@ -18,9 +26,15 @@ export async function POST(request: Request) {
   }
   const timeZone = typeof record.timeZone === "string" ? record.timeZone : "UTC";
   const encounterId = typeof record.encounterId === "string" ? record.encounterId : null;
+  const clientNow = parseClientNow(record.clientNow);
 
   try {
-    const briefing = await createBriefing({ norad: noradValue, timeZone, encounterId });
+    const briefing = await createBriefing({
+      norad: noradValue,
+      timeZone,
+      encounterId,
+      toolOptions: clientNow ? { clientNow } : undefined,
+    });
     return NextResponse.json(briefing);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not write the briefing";
