@@ -1,108 +1,239 @@
-# Orbit Watch
+<div align="center">
 
-Space traffic triage for university CubeSat teams. This slice ingests public [CelesTrak SOCRATES](https://celestrak.org/SOCRATES/) close-approach warnings, ranks them, and shows the result on a three-panel dashboard. The demo satellite is **SwissCube** (NORAD 35932), an EPFL 1U CubeSat in a roughly 685 km sun-synchronous orbit with no thrusters.
+# 🛰️ Orbit Watch
 
-The center panel is a CesiumJS globe (Resium, client-only). The right panel is the Grok voice copilot: hold to talk, or use Brief me if the mic or the realtime API is unavailable. The Imagine render of the selected encounter sits on the globe and under the transcript.
+### Space traffic control for the 99% of operators who don't have a control room.
 
-**Not for operational use.** Orbit Watch does not replace 18 SDS, a conjunction-assessment team, or a maneuver decision. It is a demo of triage and explanation.
+**A Grok voice copilot that reads real collision warnings, throws out the false alarms, and tells you, out loud, which one actually matters. Now with a live mission room on SpacetimeDB, so the whole team sees the same picture.**
 
-## Setup
+[**🌍 Live site**](https://orbit-watch-nu.vercel.app) · [**📡 CelesTrak SOCRATES**](https://celestrak.org/SOCRATES/) · Built for the SpaceXAI *Make it Legendary* hackathon
+
+</div>
+
+---
+
+> **Not for operational use.** Orbit Watch is a demo of triage and explanation built on public data. It does not replace the 18th Space Defense Squadron, a conjunction-assessment team, or a maneuver decision, and it never gives maneuver orders.
+
+## 🚨 The real threat tonight
+
+On **Sunday, Oct 4, 2026 at 9:26 PM ET** (2026-10-05 01:26:28 UTC), **SwissCube** (NORAD 35932), a 1U CubeSat built by EPFL students, is predicted to pass **621 meters** from Soviet rocket debris, **SL-8 DEB** (NORAD 19831), at **13.881 km/s** (about 50,000 km/h).
+
+| | |
+|---|---|
+| **Primary** | SwissCube · NORAD 35932 · ~685 km sun-synchronous · no thrusters |
+| **Secondary** | SL-8 DEB · NORAD 19831 |
+| **Time of closest approach** | 2026-10-05 01:26:28.592 UTC |
+| **Miss distance** | 0.621 km (CelesTrak SOCRATES) · 0.691 km (our own SGP4 run) |
+| **Relative speed** | 13.881 km/s |
+| **Max probability** | 5.614 × 10⁻⁶ |
+| **Verdict** | **Act** (priority score 84.0), the one pass the team should look at. Not a maneuver order. |
+
+[Check the SwissCube report on CelesTrak yourself →](https://celestrak.org/SOCRATES/table-socrates.php?CATNR=35932&ORDER=MINRANGE&MAX=25)
+
+## 🤯 The problem
+
+CelesTrak's SOCRATES screens the whole tracked catalog, and one weekly run lists **183,612** predicted close approaches. Big operators have flight dynamics teams. University CubeSat teams have a grad student and a spreadsheet. Most warnings are noise, but you can't safely ignore any of them.
+
+## 💡 What Orbit Watch does
+
+```mermaid
+flowchart LR
+  A[CelesTrak SOCRATES<br/>close-approach warnings] --> B[False-alarm filter]
+  C[CelesTrak GP / OMM orbits] --> D[Independent SGP4 check]
+  B --> E[Risk ranker]
+  D --> E
+  E --> F[3D Cesium globe]
+  E --> G[Grok Voice + Brief me]
+  E --> H[Grok Imagine render]
+  G --> I[(SpacetimeDB<br/>mission room)]
+  F --> I
+```
+
+For SwissCube this week:
+
+- **21** warnings screened
+- **19** dismissed automatically, each with a reason
+  - 1 co-orbiting (BEESAT-1, its 2009 launch sibling: 4.368 km apart but drifting at only 0.078 km/s)
+  - 16 below the probability threshold
+  - 2 duplicate passes
+- **2** kept
+  - 🔴 **SL-8 DEB**: *Act* (84.0)
+  - 🟡 **SL-8 R/B**: *Watch* (66.9)
+
+From 21 alarms to 1 decision.
+
+## ✨ Features
+
+**Triage and voice**
+- 🚨 **Heads-up alert:** a banner with a live countdown to tonight's pass as soon as the page loads, plus **Play alert** and **Replay alert**.
+- 📢 **Brief me:** one tap for a short spoken briefing. The text appears instantly and the audio streams.
+- 🗣️ **Talk to Grok:** hold the mic and ask "What's the biggest threat tonight?" or "Why did you dismiss the others?" Grok Voice calls tools for every number (`get_ranked_warnings`, `get_encounter`, `explain_dismissed`, `focus_encounter`) and can fly the globe to the pass it's talking about.
+- 🔇 **Voice on/off** switch and 📤 **Share this alert** (native share sheet or copy to clipboard).
+
+**Globe and proof**
+- 🌍 **3D Cesium globe:** both orbits around the encounter, a pulsing closest-approach marker, a side label, colored orbits, Show dismissed, Reset view, and a play/pause scrubber.
+- 🎨 **Grok Imagine renders** of the selected encounter, labeled as an artist's rendering, not a photograph.
+- ✅ **Verify on CelesTrak** links on every threat.
+- 🧮 **Our own math:** we propagate both orbits with SGP4 and cross-check CelesTrak's miss distance (691 m vs 621 m).
+
+**Any CubeSat**
+- 🔭 **Track another CubeSat:** type a NORAD number or pick from the **Known** list (AO-91, HUCSat, ESTCube-1), choose a **Horizon** of 24 hours, 72 hours, or 7 days, and hit **Track**. The cards, globe, voice, and Brief me all switch to that satellite. **Back to SwissCube** returns to the demo.
+
+**Live mission room (SpacetimeDB)**
+- 🟢 **Status pill** on each kept threat (Watching / Act / Dismissed). Anyone can change it, and it updates on every open screen.
+- 📝 **Note thread** under each threat.
+- 👥 **"N watching"** in the header, from live presence. Each tab counts separately.
+- 📡 **Team feed:** status changes, Brief me, and the heads-up alert post into a shared feed, for example `Grok briefed: SL-8 DEB 621 m at 9:26 PM`.
+- 🪪 **Callsign:** the first visit asks for one (prefilled like `Operator-1234`) and remembers it.
+- The room is off unless both SpacetimeDB settings are present, so the solo app never changes.
+
+## 🧠 How the ranking works
+
+1. **Is it real?** Co-orbiting objects (relative speed under 0.10 km/s), duplicate passes, and negligible-probability events are dismissed, with the reason shown.
+2. **How bad would it be?** A 0–100 score with weights: probability 0.40, miss distance 0.25, relative speed 0.15, time to closest approach 0.10, and whether the other object can be coordinated with 0.10.
+3. **What should we do?** Act if score ≥ 70 or max probability ≥ 1e-5. Watch is 40–70. Info is below 40.
+
+**Calibrated for CubeSats.** The build plan's original probability term `(log10(p)+7)/4` fits ISS-class events. Public SOCRATES probabilities for a CubeSat that can't maneuver sit around 1e-6 to 1e-5, so that scale left a 621 m head-on pass in the low 60s. The probability term is now `clamp((log10(p)+8)/3, 0, 1)` (1e-8 → 0, 1e-5 → 1), which puts SL-8 DEB at 84. The 1e-4 NASA CARA figure is an operational maneuver threshold, not what this public screen reports for SwissCube, so it isn't the Act gate here.
+
+Stale data (more than 3 days since epoch) and dilution (dilution larger than the miss) show as flags on the card. They don't change the score.
+
+### Why 621 m vs 691 m?
+
+Both use SGP4, but they start from orbit data published at different times. CelesTrak screened from earlier element sets. Ours are real CelesTrak GP data fetched later on Oct 3. Public orbit data is uncertain by hundreds of meters, which is why SOCRATES also reports a probability. Two independent calculations about 70 m apart tell you the threat is real.
+
+## 🚀 Run it locally
+
+Requires Node.js and npm.
 
 ```bash
+git clone https://github.com/ArunimaV/orbit-watch.git
+cd orbit-watch
 npm install
-npm test
+cp .env.example .env.local     # then add your XAI_API_KEY (see below)
+npm test                       # optional
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). The left panel loads `/api/conjunctions?norad=35932&horizon=168`. ISS (NORAD 25544) is still available if you type that id; it is a secondary example, not the demo.
+Open http://localhost:3000. The app opens on SwissCube vs SL-8 DEB.
 
-Copy `.env.example` to `.env.local` and set `XAI_API_KEY` for live voice, briefs, and new images. There is no key in the repo. Without it, the app stays in mock mode: the panel says the key is missing, Brief me still writes a briefing from the ranker, and the image is the committed render.
+### Environment variables
 
-| Variable | Required now | Purpose |
+| Variable | Required | Purpose |
 |---|---|---|
-| `XAI_API_KEY` | No | Server-only key for voice, `/v1/responses`, TTS, and Imagine. Never ship it to the browser. |
-| `NEXT_PUBLIC_CESIUM_ION_TOKEN` | No | Unused. The globe uses the Natural Earth II imagery shipped with Cesium, not Cesium ion. |
-| `ORBIT_WATCH_OFFLINE` | No | Set to `1` to skip CelesTrak and serve `data/fixtures/` only. |
-| `DEMO_NOW` | No | Fixture-mode clock, ISO. Empty uses `2026-10-04T16:00:00Z` (noon US Eastern on Oct 4) so ranking and “tonight” stay stable. |
+| `XAI_API_KEY` | For live voice | Server-only key from [console.x.ai](https://console.x.ai) for realtime voice, Brief me, text-to-speech, and new Imagine renders. Never ship it to the browser. Without it, the app runs in mock mode: the mic is off, Brief me still reads the ranker's text, and the committed SwissCube render is shown. |
+| `NEXT_PUBLIC_SPACETIME_URI` | For the mission room | SpacetimeDB server, e.g. `https://maincloud.spacetimedb.com` or `http://127.0.0.1:3100`. Public, not a secret. |
+| `NEXT_PUBLIC_SPACETIME_MODULE` | For the mission room | Database name, e.g. `orbit-watch`. Both SpacetimeDB values must be set or the room stays off. |
+| `ORBIT_WATCH_OFFLINE` | No | `1` skips CelesTrak and serves `data/fixtures/` only. |
+| `DEMO_NOW` | No | Fixture-mode clock (ISO). Empty uses `2026-10-04T16:00:00Z` (noon ET Oct 4), so SL-8 DEB stays ranked and reads as "tonight." |
+| `NEXT_PUBLIC_CESIUM_ION_TOKEN` | No | Unused. The globe uses Natural Earth II imagery bundled with Cesium. |
 
-`npm run ingest` checks SOCRATES `jsonDir.php` (at most once an hour) and downloads the CSV only when `FILE_MTIME` changes. Any non-200 response stops the script. There are no retries.
+### Optional: turn on the live mission room (SpacetimeDB)
 
-## Data sources
+The module lives in `spacetime/`. Generated client bindings are in `lib/spacetime/module_bindings/`, and `spacetime.json` points at `./spacetime` with Maincloud as the default server.
 
-Primary screen: [CelesTrak SOCRATES Plus](https://celestrak.org/SOCRATES/) (methodology, [format](https://celestrak.org/SOCRATES/socrates-format.php)). Orbits for propagation: [CelesTrak GP / OMM](https://celestrak.org/NORAD/documentation/gp-data-formats.php), always requested with `FORMAT=JSON`. Propagation uses satellite.js v7 `json2satrec` on that OMM. TLEs are not used, because catalog numbers already exceed five digits.
+1. **Install the SpacetimeDB CLI** (2.10.2 used here) and check it:
+   ```bash
+   curl -sSf https://install.spacetimedb.com | sh
+   spacetime --version
+   ```
+   Add `~/.local/bin` to your PATH if the installer asks, then open a new terminal.
+2. **Log in** (opens a browser for GitHub or Google):
+   ```bash
+   spacetime login
+   ```
+3. **Publish the module** from the repo root:
+   ```bash
+   npm install --prefix spacetime
+   spacetime publish orbit-watch --server maincloud
+   ```
+   If `orbit-watch` is taken, pick another lowercase name with dashes and use it below. Re-run the same command to update the module. Compatible schema changes keep the data.
+4. **Add to `.env.local`:**
+   ```bash
+   NEXT_PUBLIC_SPACETIME_URI=https://maincloud.spacetimedb.com
+   NEXT_PUBLIC_SPACETIME_MODULE=orbit-watch
+   ```
+5. **Restart** `npm run dev`, then open http://localhost:3000 in **two windows** side by side. Join with a different callsign in each. The header shows "2 watching." Set **Act** on SL-8 DEB in one window, add a note, or hit **Brief me**, and watch it appear in the other.
 
-Orbit Watch follows the [CelesTrak usage policy](https://celestrak.org/usage-policy.php):
+**Inspect the data:**
+```bash
+spacetime sql orbit-watch "SELECT * FROM threat_status" --server maincloud
+```
+Swap in `note`, `presence`, or `feed`. You can also browse the tables on the SpacetimeDB dashboard.
 
-- Cache responses under `data/`.
-- Poll `jsonDir.php` no more than once an hour, and download the screen only when `FILE_MTIME` changes.
-- Refetch a GP element set only when the cache is older than two hours.
-- Stop on the first non-200 response, including redirects. Log it. Do not retry.
+**Fully local instead of Maincloud.** Next.js uses port 3000, so run SpacetimeDB on 3100:
+```bash
+spacetime start --listen-addr 127.0.0.1:3100
+# in another terminal, from the repo root:
+npm install --prefix spacetime
+spacetime publish orbit-watch --server http://127.0.0.1:3100 --yes
+```
+and set `NEXT_PUBLIC_SPACETIME_URI=http://127.0.0.1:3100`.
 
-While the API is serving the fixture, ranking uses `DEMO_NOW` (default `2026-10-04T16:00:00Z`). That is noon US Eastern on Sunday, Oct 4, so the SL-8 DEB pass at 9:26 PM EDT reads as tonight. In fixture mode that pass is kept even if the clock is after the TCA, so a judge opening the app later still sees the demo warning. A live snapshot uses the browser's clock instead. Set `DEMO_NOW` to another ISO instant to move the fixture clock.
+#### Mission room schema
+
+| Table | Holds | Written by reducer |
+|---|---|---|
+| `threat_status` | Watching / Act / Dismissed per encounter, who set it, when | `setStatus` |
+| `note` | Per-encounter note thread (author, text, time) | `addNote` |
+| `presence` | One row per live connection with callsign and last heartbeat | `heartbeat` (removed on disconnect, stale rows pruned after 45 s) |
+| `feed` | System and Grok lines. Duplicates within 20 s are dropped, and the latest 40 are kept. | `postFeed` |
+
+Every reducer validates its input first: allowed status values, length limits (names 40, notes 280, feed 320 characters), a safe character set, and no control characters. Clients subscribe to the tables and don't poll.
+
+## 📡 Data sources
+
+- **Close approaches:** [CelesTrak SOCRATES Plus](https://celestrak.org/SOCRATES/) ([format](https://celestrak.org/SOCRATES/socrates-format.php)).
+- **Orbits:** [CelesTrak GP / OMM](https://celestrak.org/NORAD/documentation/gp-data-formats.php), always requested with `FORMAT=JSON` and propagated with satellite.js v7 `json2satrec` (SGP4). TLEs aren't used, because catalog numbers already exceed five digits.
+
+**What's real.** `data/fixtures/socrates-sample.json` holds the real SOCRATES Plus screen for SwissCube (21 rows, data current as of 2026-10-03 00:19:27 UTC). The GP files in `data/fixtures/gp/` are real CelesTrak element sets fetched on Oct 3 for 11 objects. The demo serves this committed snapshot by default so judging is stable. `npm run ingest` pulls a fresh screen. Lookups for other satellites (`/api/lookup`) make one live SOCRATES request with an 8-second timeout, cached for 10 hours.
+
+**CelesTrak usage policy.** We cache under `data/`, poll `jsonDir.php` at most once an hour, download the screen only when `FILE_MTIME` changes, refetch a GP set only when the cache is more than 2 hours old, and stop on the first non-200 response with no retries. HTTPS to `celestrak.org` times out from some networks, so a transport failure is tried once over plain `http://` with the same path.
 
 Data courtesy of [CelesTrak](https://celestrak.org/) (Dr. T.S. Kelso).
 
-HTTPS requests to `celestrak.org` time out from some networks, including this one. A transport failure (timeout, abort, or connection error) is tried once more as `http://celestrak.org` with the same path. A non-200, including a redirect, still stops immediately. The hourly `jsonDir.php` cap and the `FILE_MTIME` check are unchanged. There is no retry of the same URL.
+## 🔌 API routes
 
-### What is real
+- `GET /api/conjunctions?norad=35932&horizon=168`: ranked cards plus dismissed counts by reason.
+- `GET /api/lookup?norad=43017&horizon=168`: the same ranked payload for any other catalog number.
+- `GET /api/encounter/[id]`: both OMMs through `json2satrec`, positions every 10 s from TCA−15 min to TCA+15 min, and our own minimum separation.
+- `POST /api/voice/token`: mints a short-lived realtime client secret (the key stays on the server).
+- `POST /api/voice/tools`: `get_ranked_warnings`, `get_encounter`, `explain_dismissed`, `focus_encounter`.
+- `POST /api/brief`: short briefing from `grok-4.20-0309-non-reasoning`, with the ranker text as fallback.
+- `POST /api/tts`: Eve voice, `audio/mpeg`.
+- `GET /api/imagine/[id]`: Grok Imagine render (`grok-imagine-image-quality`), cached, with the committed `public/renders/swisscube-sl8deb.jpg` as the default and fallback.
 
-`data/fixtures/socrates-sample.json` is what the API serves until `npm run ingest` writes a snapshot. The SwissCube rows in that file are the real SOCRATES Plus screen for NORAD 35932, data current as of 2026-10-03 00:19:27 UTC (`table-socrates.php?CATNR=35932&ORDER=MINRANGE&MAX=25`, 21 rows). On those rows, these fields are from the table and are not synthetic: catalog numbers, names, ops status, days since epoch, TCA, range, relative speed, max probability, and dilution.
+## ▲ Deploy to Vercel
 
-| Other object | From the table |
+The Next.js preset works as is. `next.config.ts` copies Cesium's static files into `public/cesium` when the config loads, so `next build` publishes them. Set `XAI_API_KEY` for live voice. To enable the mission room on the live site, also add `NEXT_PUBLIC_SPACETIME_URI` and `NEXT_PUBLIC_SPACETIME_MODULE` and **redeploy**, because Vercel reads `NEXT_PUBLIC_*` at build time. Without them, the live site runs the solo app.
+
+## 🛠️ Built with
+
+| | |
 |---|---|
-| SL-8 DEB (19831) `[-]` | TCA 2026-10-05 01:26:28.592 UTC, 0.621 km, 13.881 km/s, max probability 5.614e-6, dilution 0.298 km, DSE 2.483 and 2.170 |
-| BEESAT-1 (35933) `[+]` | TCA 2026-10-06 11:51:08.166 UTC, 4.368 km, 0.078 km/s, max probability 2.313e-7, dilution 1.030 km |
-| FENGYUN 1C DEB (29842) `[-]` | 1.741 km, TCA 2026-10-10 00:38:31.042 UTC, plus two later passes of the same object |
-| COSMOS 2251 DEB (35759) `[-]` | 2.933 km, TCA 2026-10-03 04:44:41.108 UTC |
+| **Cursor** | All code written in Cursor. Several Cursor cloud agents built features in parallel on separate PRs (#1–#16), with small, frequent commits. |
+| **Grok Voice API** | Realtime push-to-talk (`grok-voice-latest`) with tool calls, plus TTS for briefings |
+| **Grok Imagine** | Artist's renderings of each encounter |
+| **Grok API** | Fast spoken briefings |
+| **SpacetimeDB** | Real-time backend for the shared mission room (tables, reducers, subscriptions, presence) |
+| **CelesTrak** | SOCRATES close approaches and GP/OMM orbit data |
+| **satellite.js** | SGP4 propagation |
+| **Next.js + CesiumJS + Resium** | App and 3D globe |
+| **Vercel** | Hosting |
+| **Grok Bot** | Planning, research, and coordinating the build agents. See `docs/planning-log.md`. |
 
-GP files in `data/fixtures/gp/` are real CelesTrak GP JSON fetched 2026-10-03 (about 19:20 ET) for 35932, 19831, 35933, 25544, 100057, 42970, 29842, 3048, 55214, 35759, and 28898. Propagating SwissCube vs SL-8 DEB from those elements gives a closest approach of **0.691 km** at the SOCRATES TCA. The screen reports 0.621 km. The 70 m gap is the epoch difference (the elements are from later on Oct 3, not the screening epoch).
+## 🔭 What's next
 
-ISS vs BREEZE-KM R/B and ISS vs SOYUZ-MS 29 stay in the fixture as the secondary example from the build-plan writeup. Their GP files are the real element sets. Dilution was not in that writeup, so `dilutionKm` is null and is the only field still listed in `syntheticFields`. Some later SwissCube secondaries in the table have no committed GP file, so the globe says elements are unavailable for that pair.
+- Mission room on the live site for every team, with a history of status changes.
+- Automatic re-screening as a pass gets closer, and alerts by text or email for new threats.
+- "What can we actually do?" guidance for teams with and without propulsion.
+- Day one for new teams: when our own CubeSat launches, we'll be watching from the first orbit.
 
-## How the ranker is calibrated
+## 🙏 Credits
 
-Section 5 of the build plan scored probability with `(log10(p)+7)/4` (1e-7 maps to 0, 1e-3 maps to 1) and treated max probability ≥ 1e-4 as Act. That scale fits an ISS-class event. Public SOCRATES probabilities for a CubeSat that cannot maneuver sit around 1e-6 to 1e-5, so the same formula left SwissCube vs SL-8 DEB — 621 m, head-on at 13.881 km/s, probability 5.614e-6 — in the low 60s, under the Act line, and the 1e-4 shortcut never fired.
+Conjunction and orbit data from [CelesTrak](https://celestrak.org) (Dr. T.S. Kelso). SwissCube was built by students at EPFL. satellite.js, CesiumJS, and SpacetimeDB. Predictions are based on public orbit data and are not for operational use.
 
-The weights are unchanged (0.40 probability, 0.25 miss distance, 0.15 relative speed, 0.10 time-to-TCA, 0.10 whether the other object can be coordinated with). Two inputs moved:
+<div align="center">
 
-- Probability is now `clamp((log10(p)+8)/3, 0, 1)`, so 1e-8 maps to 0 and 1e-5 maps to 1. A 5.6e-6 event is near the top of the CubeSat range instead of the middle of an ISS range.
-- Act is score ≥ 70 or max probability ≥ 1e-5. Watch is 40–70. Info is below 40.
+**Made with 🛰️ for every team launching their first satellite.**
 
-With that map, the 621 m miss (`R ≈ 0.54`) and the 13.9 km/s closing speed (`V ≈ 0.93`) carry SL-8 DEB to about 84 while it is 6–72 hours away, which is Act. The justification is the geometry: once a typical CubeSat probability is no longer crushed, a sub-kilometer head-on pass is the warning the team should look at. ISS vs BREEZE-KM R/B still scores Act. The 1e-4 NASA CARA figure is an operational Pc threshold, not what this public screen reports for SwissCube, so it is not the Act gate here.
-
-Co-orbiting uses relative speed under 0.10 km/s, up from 0.05 km/s. 0.05 caught docked vehicles (ISS–Soyuz at 0.002 km/s) and missed same-launch siblings. BEESAT-1 at 0.078 km/s is dismissed as "Docked or co-orbiting, not a collision course". 0.10 km/s is still about a hundred times slower than a glancing pass in low Earth orbit.
-
-Stale data (`max(DSE) > 3` days) and dilution (dilution larger than the miss) are flags on the card. They do not change the score.
-
-## Globe
-
-`npm install`, `npm run build`, and `next build` all copy `Cesium.js` plus Workers, Assets, Widgets, and ThirdParty into `public/cesium` (gitignored). The Next.js config runs that copy when it loads, so Vercel's Next.js preset (`next build`, not `npm run build`) still publishes `/cesium/Cesium.js` and the worker and imagery files. The copy fails if `node_modules/cesium/Build/Cesium/Cesium.js` is missing. The viewer is loaded with `next/dynamic` and `ssr: false`. Imagery is the bundled Natural Earth II tiles. Terrain is the WGS84 ellipsoid, so the app does not call Cesium ion.
-
-On load the SwissCube vs SL-8 DEB card is selected. The camera flies to the pair. Both tracks are the encounter API's samples from TCA−15 min to TCA+15 min. A pulsing marker sits on SwissCube's TCA sample and labels the SOCRATES miss, relative speed, and the closest approach in the viewer's local time. Play/pause and the scrubber step those samples. A card whose other object has no committed GP file shows an error on the globe instead of a track.
-
-## API
-
-- `GET /api/conjunctions?norad=35932&horizon=168` — ranked cards plus `dismissed: N` grouped by reason. `now` is the evaluation clock (the demo clock in fixture mode). SwissCube on first load stays on this saved demo.
-- `GET /api/lookup?norad=43017&horizon=168` — the same ranked payload for any other catalog number. One `http://celestrak.org/SOCRATES/table-socrates.php` request, 8 second timeout, cached for 10 hours. A failure or an empty screen leaves the current view in place.
-- `GET /api/encounter/[id]` — both OMMs through `json2satrec`, positions every 10 s from TCA−15 min to TCA+15 min, ECI then ECF then geodetic, and this app's own minimum separation.
-- `POST /api/voice/token` — mints an ephemeral realtime client secret (`value`, `expires_at` only). `GET` reports whether a key is set and does not mint.
-- `POST /api/voice/tools` — `get_ranked_warnings`, `get_encounter`, `explain_dismissed`, `focus_encounter`.
-- `POST /api/brief` — grok-4.7 briefing, or the ranker text when the key or the API is missing.
-- `POST /api/tts` — Eve, English, `audio/mpeg`.
-- `GET /api/imagine/[id]` — cached JPEG, or the committed `public/renders/swisscube-sl8deb.jpg` for the SwissCube / SL-8 pass and as the fallback. New images are written to `public/renders` when that directory is writable, otherwise to `/tmp/orbit-watch-renders` and served from `GET /api/renders/[id]`. If the write fails, the committed JPEG is returned.
-
-`focus_encounter` dispatches `window` event `orbitwatch:focus` with `{ id }`. The warning list selects that card, and the globe flies to it even when that card was already selected. The same selection loads the Imagine render onto the globe.
-
-## Deploy to Vercel
-
-The Vercel project can keep the Next.js preset. That preset runs `next build`, which does not run the npm `build` or `prebuild` scripts. `next.config.ts` copies `node_modules/cesium/Build/Cesium` into `public/cesium` as soon as the config loads, including `Cesium.js`, Workers, Assets, Widgets, and ThirdParty. `npm install` (postinstall) and `npm run build` run the same copy. The files are gitignored, so they have to be created on the build machine. The script exits if `Cesium.js` or the Natural Earth II tiles are missing after the copy.
-
-Set `XAI_API_KEY` in the Vercel project for live voice, briefs, and new images. Leave it unset for mock mode: Brief me still reads the ranker, and the image is the committed render.
-
-`DEMO_NOW` defaults to `2026-10-04T16:00:00Z` while the app is serving the fixture, so SL-8 DEB stays listed and reads as tonight in US Eastern during judging (about 12:30–2:30 PM ET on Oct 4). `ORBIT_WATCH_OFFLINE=1` forces the fixtures.
-
-Generated images go to `public/renders` when that directory is writable. On a read-only filesystem the cache is written to `/tmp/orbit-watch-renders` and served by `/api/renders/[id]`. If that write also fails, the generated bytes stay in memory and are still served from `/api/renders/[id]`. The committed `public/renders/swisscube-sl8deb.jpg` is the SwissCube / SL-8 default and the fallback when generation itself fails. `/api/imagine/[id]` allows 60 seconds for that call.
-
-## Credits
-
-CelesTrak (Dr. T.S. Kelso). satellite.js. The build plan and planning log in `docs/` were written with Grok Bot before this implementation.
+</div>
