@@ -49,9 +49,11 @@ describe("createBriefing", () => {
   });
 
   it("uses the non-reasoning brief model when the responses call succeeds", async () => {
+    const text =
+      "SL-8 DEB is the one threat for SwissCube. Closest approach is tonight at 9:26 PM EDT, about 621 meters, at 13.9 kilometers per second. BEESAT-1 is just flying alongside you. Tell the team. This is not a maneuver order.";
     const fetchImpl = vi.fn(async () =>
       Response.json({
-        output: [{ type: "message", content: [{ type: "output_text", text: "One pass matters." }] }],
+        output: [{ type: "message", content: [{ type: "output_text", text }] }],
       }),
     );
     const briefing = await createBriefing({
@@ -61,13 +63,45 @@ describe("createBriefing", () => {
       apiKey: "server-key",
       fetchImpl,
     });
-    expect(briefing).toMatchObject({ source: "grok", mock: false, text: "One pass matters." });
+    expect(briefing).toMatchObject({ source: "grok", mock: false, text });
     const [url, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
     expect(url).toBe(RESPONSES_URL);
     const body = JSON.parse(String(init.body)) as { model: string; input: { content: string }[] };
     expect(body.model).toBe("grok-4.20-0309-non-reasoning");
     expect(body.input[0]?.content).toMatch(/America\/New_York/);
     expect(body.input[0]?.content).toMatch(/621/);
+    expect(body.input[0]?.content).not.toMatch(/focus_encounter/);
+    expect(body.input[0]?.content).not.toMatch(/Call tools/);
+  });
+
+  it("falls back to the ranker when grok returns filler or too little text", async () => {
+    const replies = [
+      "One pass matters.",
+      "I'll pull the closest pass and focus the globe on it before the briefing.",
+      "I'll focus the globe on the one close pass, then brief from the screening numbers.",
+      "I'll focus the globe on the one close pass before I brief the team from the screening numbers that are already on the card for tonight.",
+    ];
+    for (const reply of replies) {
+      const fetchImpl = vi.fn(async () =>
+        Response.json({
+          output: [{ type: "message", content: [{ type: "output_text", text: reply }] }],
+        }),
+      );
+      const briefing = await createBriefing({
+        norad: 35932,
+        timeZone: "America/New_York",
+        toolOptions: OPTIONS,
+        apiKey: "server-key",
+        fetchImpl,
+      });
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+      expect(briefing.source).toBe("local");
+      expect(briefing.mock).toBe(false);
+      expect(briefing.text).toMatch(/621 meters/);
+      expect(briefing.text).toMatch(/9:26 PM EDT/);
+      expect(briefing.text).not.toMatch(/globe|I'll pull|I'll focus|tools/i);
+      expect(briefing.message).toBeUndefined();
+    }
   });
 
   it("falls back to the ranker text when grok fails, without retrying", async () => {

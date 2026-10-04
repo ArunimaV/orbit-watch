@@ -1,10 +1,9 @@
 import { DEMO_NORAD } from "./constants";
 import { DISMISS } from "./rank";
-import { formatApproachTime } from "./time-format";
+import { formatApproachTime, safeTimeZone } from "./time-format";
 import { readXaiApiKey, requestTextBrief } from "./xai";
 import { MISSING_KEY_MESSAGE } from "./xai-config";
 import { loadVoiceContext, type VoiceContext, type VoiceToolOptions } from "./voice-tools";
-import { voiceInstructions } from "./voice-prompt";
 
 export interface Briefing {
   text: string;
@@ -53,6 +52,36 @@ export function localBriefing(context: VoiceContext, timeZone: string, encounter
     .join(" ");
 }
 
+/**
+ * Spoken brief only. The realtime voice persona tells Grok to call tools and
+ * focus_encounter; this request has no tools, so that wording comes back as
+ * filler ("I'll focus the globe…") and gets read aloud.
+ */
+function briefPersona(timeZone: string, now: Date): string {
+  const zone = safeTimeZone(timeZone);
+  const clock = formatApproachTime(now.toISOString(), zone, now);
+  return `You are Orbit Watch, a calm space-traffic controller for a university CubeSat team. The demo satellite is SwissCube, NORAD 35932, a 1U CubeSat with no thrusters. The listener's time zone is ${zone}. The clock for this briefing is ${clock.local} (${clock.utc}).
+
+Be concise. The numbers are already in the JSON below. Never invent a miss distance, a relative speed, a probability, or a time. Speak the briefing itself. Do not mention tools, looking something up, pulling a pass, or moving the globe.
+
+Lead with the one threat. Cite the miss distance in meters, the relative speed in kilometers per second, and the time of closest approach in the listener's local time, using tcaSpeech from the JSON. If that says tonight or tomorrow, say it that way. Keep the UTC time as a short second mention. Keep the whole briefing under 60 words. Do not list every dismissed warning. Name one false alarm in plain words (for example, "BEESAT-1 is just flying alongside you").
+
+If the orbit data is stale, say so and treat it as a heads-up. Do not give a maneuver order.
+
+End with one next step: notify the team. This is triage, not an operational decision.`;
+}
+
+const FILLER_BRIEF =
+  /call(?:ing)?\s+(?:the\s+|a\s+)?tools?\b|focus(?:ing)?\s+the\s+globe|focus_encounter|i['’]ll\s+pull|i['’]ll\s+focus|i\s+will\s+pull|i\s+will\s+focus/i;
+
+export function briefingTextIsUsable(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed) return false;
+  if (trimmed.split(/\s+/).filter(Boolean).length < 20) return false;
+  if (FILLER_BRIEF.test(trimmed)) return false;
+  return true;
+}
+
 function briefPrompt(context: VoiceContext, timeZone: string, encounterId?: string | null): string {
   const data = {
     satellite: context.satelliteName,
@@ -82,7 +111,7 @@ function briefPrompt(context: VoiceContext, timeZone: string, encounterId?: stri
     highlightId: encounterId ?? context.ranked[0]?.id ?? null,
   };
 
-  return `${voiceInstructions(timeZone, context.now)}
+  return `${briefPersona(timeZone, context.now)}
 
 Write the spoken briefing now, using only the JSON below. Under 60 words. Plain sentences. No markdown, no bullet list, and no filter labels.
 ${JSON.stringify(data)}`;
@@ -124,6 +153,17 @@ export async function createBriefing(input: {
       source: "local",
       mock: false,
       message: `${grok.message} Showing the briefing from the ranker instead.`,
+      norad,
+      encounterId: input.encounterId ?? context.ranked[0]?.id ?? null,
+    };
+  }
+
+  if (!briefingTextIsUsable(grok.text)) {
+    console.error("[orbit-watch] text briefing rejected:", grok.text);
+    return {
+      text: local,
+      source: "local",
+      mock: false,
       norad,
       encounterId: input.encounterId ?? context.ranked[0]?.id ?? null,
     };
