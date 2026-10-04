@@ -48,7 +48,6 @@ export function VoicePanel({
   evaluatedAt: string | null;
 }) {
   const [lines, setLines] = useState<TranscriptLine[]>([]);
-  const [exchangeKey, setExchangeKey] = useState(0);
   const [configured, setConfigured] = useState<boolean | null>(null);
   const [banner, setBanner] = useState<string | null>(null);
   const [recording, setRecording] = useState(false);
@@ -73,6 +72,7 @@ export function VoicePanel({
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const transcriptEpoch = useRef(0);
   const dropAssistantRef = useRef(false);
+  const logRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -136,9 +136,8 @@ export function VoicePanel({
     return () => window.removeEventListener("keydown", onKey);
   }, [renderOpen]);
 
-  function revealExchange(next: TranscriptLine[]) {
-    setExchangeKey((current) => current + 1);
-    setLines(next);
+  function appendLines(next: TranscriptLine[]) {
+    setLines((current) => [...current, ...next]);
   }
 
   function pushLine(role: TranscriptLine["role"], text: string): string {
@@ -147,7 +146,7 @@ export function VoicePanel({
       youLineRef.current = id;
       grokLineRef.current = null;
       userTurnOpenRef.current = true;
-      revealExchange([{ id, role, text }]);
+      appendLines([{ id, role, text }]);
       return id;
     }
     setLines((current) => [...current, { id, role, text }]);
@@ -209,7 +208,7 @@ export function VoicePanel({
           grokLineRef.current = id;
           const line = { id, role: "grok" as const, text: delta };
           if (youLineRef.current) setLines((current) => [...current, line]);
-          else revealExchange([line]);
+          else appendLines([line]);
         } else {
           const id = grokLineRef.current;
           setLines((current) =>
@@ -232,7 +231,7 @@ export function VoicePanel({
         userTurnOpenRef.current = false;
         if (!transcript) return;
         if (id) replaceLine(id, transcript);
-        else revealExchange([{ id: lineId(), role: "grok", text: transcript }]);
+        else appendLines([{ id: lineId(), role: "grok", text: transcript }]);
       },
       onUserTranscript: (transcript, final) => {
         if (briefLockRef.current || dropAssistantRef.current || !transcript) return;
@@ -334,7 +333,6 @@ export function VoicePanel({
     userTurnOpenRef.current = false;
     setLines([]);
     setError(null);
-    setExchangeKey((current) => current + 1);
     stopPlayback();
   }
 
@@ -374,7 +372,6 @@ export function VoicePanel({
     youLineRef.current = null;
     grokLineRef.current = null;
     userTurnOpenRef.current = false;
-    setLines([]);
     try {
       const response = await fetch("/api/brief", {
         method: "POST",
@@ -398,7 +395,7 @@ export function VoicePanel({
       if (transcriptEpoch.current !== epoch) return;
       const id = lineId();
       grokLineRef.current = null;
-      revealExchange([{ id, role: "grok", text: body.text }]);
+      appendLines([{ id, role: "grok", text: body.text }]);
       if (body.message) setBanner(body.message);
       if (!body.mock) await speak(body.text, epoch);
     } catch (cause) {
@@ -409,6 +406,14 @@ export function VoicePanel({
       setBriefing(false);
     }
   }
+
+  useEffect(() => {
+    const scroller = logRef.current;
+    const latest = scroller?.querySelector<HTMLElement>("[data-latest='true']");
+    if (!scroller || !latest) return;
+    const delta = latest.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+    scroller.scrollTop += delta;
+  }, [lines]);
 
   return (
     <section className="flex min-h-[220px] min-h-0 flex-col bg-panel">
@@ -430,7 +435,7 @@ export function VoicePanel({
         </div>
       </header>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+      <div ref={logRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
         {banner && <p className="mb-3 text-xs leading-relaxed text-muted">{banner}</p>}
         {error && <p className="mb-3 text-xs leading-relaxed text-act">{error}</p>}
         {lines.length === 0 && !banner && !briefing && (
@@ -438,9 +443,13 @@ export function VoicePanel({
             Hold the mic and ask about SwissCube, or use Brief me if the mic is unavailable.
           </p>
         )}
-        <div key={exchangeKey} className="orbit-fade-in flex flex-col gap-3">
-          {lines.map((line) => (
-            <p key={line.id} className="text-sm leading-relaxed">
+        <div className="flex flex-col gap-3">
+          {lines.map((line, index) => (
+            <p
+              key={line.id}
+              data-latest={index === lines.length - 1 ? "true" : undefined}
+              className={`text-sm leading-relaxed ${index === lines.length - 1 ? "orbit-fade-in" : ""}`}
+            >
               <span className="mr-2 font-mono text-[10px] tracking-wide text-accent uppercase">
                 {line.role === "you" ? "You" : line.role === "grok" ? "Grok" : "Note"}
               </span>
