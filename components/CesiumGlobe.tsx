@@ -10,12 +10,14 @@ import {
   Cartesian3,
   Color,
   ConstantPositionProperty,
+  Ellipsoid,
+  EllipsoidalOccluder,
   EllipsoidTerrainProvider,
   HeadingPitchRange,
   ImageryLayer,
   Ion,
-  LabelStyle,
   Math as CesiumMath,
+  SceneTransforms,
   TileMapServiceImageryProvider,
   buildModuleUrl,
   type Entity,
@@ -27,6 +29,7 @@ import { formatCountdown, countdownClockMs } from "@/lib/countdown";
 import type { TrackSample } from "@/lib/encounter";
 import { subscribeFocusEncounter } from "@/lib/focus";
 import { formatApproachTime } from "@/lib/time-format";
+import { placeCallout } from "@/lib/globe-callout";
 import { nearestSampleIndex } from "@/lib/tracks";
 import type { RankedEvent } from "@/lib/types";
 
@@ -68,6 +71,65 @@ function toCartesian(sample: TrackSample): Cartesian3 {
   return Cartesian3.fromDegrees(sample.geodetic.lonDeg, sample.geodetic.latDeg, sample.geodetic.altKm * 1000);
 }
 
+function EncounterCallout({
+  position,
+  hostRef,
+  labelRef,
+  lineRef,
+}: {
+  position: Cartesian3 | null;
+  hostRef: { current: HTMLDivElement | null };
+  labelRef: { current: HTMLDivElement | null };
+  lineRef: { current: SVGLineElement | null };
+}) {
+  const { viewer } = useCesium();
+  const positionRef = useRef(position);
+  positionRef.current = position;
+
+  useEffect(() => {
+    if (!viewer || viewer.isDestroyed()) return undefined;
+    const occluder = new EllipsoidalOccluder(Ellipsoid.WGS84, viewer.camera.position);
+    const scratch = new Cartesian2();
+    const update = () => {
+      const host = hostRef.current;
+      const label = labelRef.current;
+      const line = lineRef.current;
+      const target = positionRef.current;
+      if (!host || !label || !line) return;
+      if (!target || viewer.isDestroyed()) {
+        label.style.opacity = "0";
+        line.style.opacity = "0";
+        return;
+      }
+      occluder.cameraPosition = viewer.camera.position;
+      const projected = SceneTransforms.worldToWindowCoordinates(viewer.scene, target, scratch);
+      if (!projected || !occluder.isPointVisible(target)) {
+        label.style.opacity = "0";
+        line.style.opacity = "0";
+        return;
+      }
+      const canvasRect = viewer.canvas.getBoundingClientRect();
+      const hostRect = host.getBoundingClientRect();
+      const x = projected.x + canvasRect.left - hostRect.left;
+      const y = projected.y + canvasRect.top - hostRect.top;
+      const placed = placeCallout(x, y, label.offsetWidth || 160, label.offsetHeight || 58, host.clientWidth, host.clientHeight);
+      label.style.transform = `translate(${Math.round(placed.left)}px, ${Math.round(placed.top)}px)`;
+      label.style.opacity = "1";
+      line.setAttribute("x1", String(Math.round(x)));
+      line.setAttribute("y1", String(Math.round(y)));
+      line.setAttribute("x2", String(Math.round(placed.anchorX)));
+      line.setAttribute("y2", String(Math.round(placed.anchorY)));
+      line.style.opacity = "0.85";
+    };
+    viewer.scene.postRender.addEventListener(update);
+    return () => {
+      if (!viewer.isDestroyed()) viewer.scene.postRender.removeEventListener(update);
+    };
+  }, [viewer, hostRef, labelRef, lineRef]);
+
+  return null;
+}
+
 function IdleCamera() {
   const { viewer } = useCesium();
 
@@ -88,7 +150,6 @@ function EncounterScene({
   other,
   index,
   tcaIndex,
-  labelRef,
   flyToken,
   onFlown,
 }: {
@@ -96,7 +157,6 @@ function EncounterScene({
   other: TrackSample[];
   index: number;
   tcaIndex: number;
-  labelRef: { current: string };
   flyToken: number;
   onFlown?: () => void;
 }) {
@@ -142,19 +202,6 @@ function EncounterScene({
           outlineWidth: 2,
           disableDepthTestDistance: Number.POSITIVE_INFINITY,
         },
-        label: {
-          text: new CallbackProperty(() => labelRef.current, false),
-          font: "bold 16px sans-serif",
-          pixelOffset: new Cartesian2(0, -36),
-          fillColor: Color.WHITE,
-          outlineColor: Color.BLACK,
-          outlineWidth: 2,
-          style: LabelStyle.FILL_AND_OUTLINE,
-          showBackground: true,
-          backgroundColor: Color.fromCssColorString("#07131a").withAlpha(0.92),
-          backgroundPadding: new Cartesian2(10, 6),
-          disableDepthTestDistance: Number.POSITIVE_INFINITY,
-        },
       });
     }
 
@@ -194,7 +241,7 @@ function EncounterScene({
       dots.current = { ours: null, other: null };
       if (!scene.isDestroyed()) scene.entities.removeAll();
     };
-  }, [viewer, ours, other, tcaIndex, flyToken, labelRef]);
+  }, [viewer, ours, other, tcaIndex, flyToken]);
 
   useEffect(() => {
     const oursSample = ours[Math.min(index, ours.length - 1)];
@@ -231,7 +278,9 @@ export default function CesiumGlobe({
   const [renderUrl, setRenderUrl] = useState<string | null>(null);
   const [renderPending, setRenderPending] = useState(false);
   const [tick, setTick] = useState<number | null>(null);
-  const labelRef = useRef("");
+  const calloutHostRef = useRef<HTMLDivElement>(null);
+  const calloutLabelRef = useRef<HTMLDivElement>(null);
+  const calloutLineRef = useRef<SVGLineElement>(null);
   const onFlownRef = useRef(onDemoFlown);
   onFlownRef.current = onDemoFlown;
   const terrainProvider = useMemo(() => new EllipsoidTerrainProvider(), []);
@@ -338,12 +387,8 @@ export default function CesiumGlobe({
           countdownClockMs(Date.parse(event.tca), tick, Date.parse(evaluatedAt), tick - startedAt),
         )
       : "";
-  const label = event
-    ? `${event.other.name}\n${formatRange(event.rangeKm)} · ${event.relSpeedKms.toFixed(3)} km/s${
-        approach ? `\n${approach.label}` : ""
-      }${remaining ? `\n${remaining}` : ""}`
-    : "";
-  labelRef.current = label;
+  const tcaSample = encounter?.tracks.ours[tcaIndex] ?? null;
+  const tcaPosition = tcaSample ? toCartesian(tcaSample) : null;
   const demoPair = event?.ours.noradId === DEMO_NORAD && event?.other.noradId === DEMO_ENCOUNTER_NORAD;
   const notifyFlown = () => {
     if (demoPair) onFlownRef.current?.();
@@ -382,16 +427,40 @@ export default function CesiumGlobe({
                 other={encounter.tracks.other}
                 index={index}
                 tcaIndex={tcaIndex}
-                labelRef={labelRef}
                 flyToken={flyToken}
                 onFlown={notifyFlown}
               />
             )}
+            <EncounterCallout
+              position={tcaPosition}
+              hostRef={calloutHostRef}
+              labelRef={calloutLabelRef}
+              lineRef={calloutLineRef}
+            />
           </Viewer>
         ) : (
           <p className="px-4 py-6 text-sm text-muted">Loading globe…</p>
         )}
-        <div className="pointer-events-none absolute top-3 left-3 flex flex-col gap-1 text-[11px]">
+        <div ref={calloutHostRef} className="pointer-events-none absolute inset-0 z-[1] overflow-hidden">
+          <svg className="absolute inset-0 h-full w-full" aria-hidden="true">
+            <line ref={calloutLineRef} stroke="#d7e6ee" strokeWidth="1" opacity="0" />
+          </svg>
+          {event && (
+            <div
+              ref={calloutLabelRef}
+              className="absolute top-0 left-0 max-w-[15rem] rounded border border-white/15 bg-[#07131a]/92 px-2 py-1 text-[12px] leading-tight text-foreground"
+              style={{ opacity: 0 }}
+            >
+              <p className="font-medium">{event.other.name}</p>
+              <p className="font-mono text-[11px]">
+                {formatRange(event.rangeKm)} · {event.relSpeedKms.toFixed(3)} km/s
+              </p>
+              {approach && <p className="text-[11px]">{approach.label}</p>}
+              {remaining && <p className="font-mono text-[11px]">{remaining}</p>}
+            </div>
+          )}
+        </div>
+        <div className="pointer-events-none absolute top-3 left-3 z-[2] flex flex-col gap-1 text-[11px]">
           <span className="text-accent">cyan · ours</span>
           <span className="text-act">red · other object</span>
           {event && encounter && (
