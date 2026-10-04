@@ -14,7 +14,12 @@ export function Dashboard() {
   const [evaluatedAt, setEvaluatedAt] = useState<string | null>(null);
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [flown, setFlown] = useState(false);
-  const [threat, setThreat] = useState<{ count: number; satelliteName: string; when: string | null } | null>(null);
+  const [threat, setThreat] = useState<{
+    count: number;
+    satelliteName: string;
+    when: string | null;
+    lead: RankedEvent | null;
+  } | null>(null);
 
   useEffect(() => {
     setStartedAt(Date.now());
@@ -34,6 +39,7 @@ export function Dashboard() {
         count={threat?.count ?? 0}
         satelliteName={threat?.satelliteName ?? "SwissCube"}
         when={threat?.when ?? null}
+        lead={threat?.lead ?? null}
       />
       <WarningList
         selectedId={selected?.id ?? null}

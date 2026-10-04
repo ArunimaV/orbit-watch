@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { ShareAlertButton } from "@/components/ShareAlertButton";
 import { threatHeadline } from "@/lib/countdown";
+import type { RankedEvent } from "@/lib/types";
 
 const SESSION_KEY = "orbit-watch-alert";
 
@@ -10,11 +12,13 @@ export function ThreatAlert({
   count,
   satelliteName,
   when,
+  lead,
 }: {
   armed: boolean;
   count: number;
   satelliteName: string;
   when: string | null;
+  lead?: RankedEvent | null;
 }) {
   const [visible, setVisible] = useState(false);
   const [playable, setPlayable] = useState(false);
@@ -48,6 +52,7 @@ export function ThreatAlert({
         className="pointer-events-auto orbit-fade-in flex max-w-md items-center gap-2 rounded border border-act/40 bg-panel/90 px-3 py-1.5 shadow-sm"
       >
         <p className="text-xs leading-snug text-foreground">{headline}</p>
+        {lead && <ShareAlertButton event={lead} satelliteName={satelliteName} />}
         {playable && (
           <button
             type="button"
