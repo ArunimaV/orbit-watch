@@ -7,6 +7,7 @@ import { dispatchFocusEncounter } from "@/lib/focus";
 import { pcm16ToBase64 } from "@/lib/pcm";
 import { RealtimeClient, openRealtimeSocket } from "@/lib/realtime-client";
 import { voiceInstructions } from "@/lib/voice-prompt";
+import { bindSpeechStop, readVoiceEnabled } from "@/lib/voice-preference";
 import { MISSING_KEY_MESSAGE } from "@/lib/xai-config";
 
 interface TranscriptLine {
@@ -108,6 +109,7 @@ export function VoicePanel({
   const briefLockRef = useRef(false);
   const chainRef = useRef(Promise.resolve());
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const stopPlaybackRef = useRef<() => void>(() => {});
   const transcriptEpoch = useRef(0);
   const localBriefRef = useRef<{ key: string; text: string } | null>(null);
   const localPromiseRef = useRef<{ key: string; promise: Promise<string> } | null>(null);
@@ -168,6 +170,8 @@ export function VoicePanel({
       audioRef.current?.pause();
     };
   }, []);
+
+  useEffect(() => bindSpeechStop(() => stopPlaybackRef.current()), []);
 
   useEffect(() => {
     if (!encounterId) return undefined;
@@ -310,7 +314,7 @@ export function VoicePanel({
         if (final) userTurnOpenRef.current = false;
       },
       onAudio: (bytes) => {
-        if (dropAssistantRef.current) return;
+        if (dropAssistantRef.current || !readVoiceEnabled()) return;
         player.enqueue(pcm16FromBytes(bytes));
       },
       onError: (message) => setError(message),
@@ -392,6 +396,7 @@ export function VoicePanel({
     }
     playerRef.current?.stop();
   }
+  stopPlaybackRef.current = stopPlayback;
 
   function clearTranscript() {
     transcriptEpoch.current += 1;
@@ -405,19 +410,25 @@ export function VoicePanel({
   }
 
   function speak(text: string, epoch: number): Promise<void> {
-    if (transcriptEpoch.current !== epoch) return Promise.resolve();
+    if (transcriptEpoch.current !== epoch || !readVoiceEnabled()) return Promise.resolve();
     stopPlayback();
+    if (!readVoiceEnabled()) return Promise.resolve();
     const audio = new Audio();
     audioRef.current = audio;
     const url = `/api/tts?text=${encodeURIComponent(text)}`;
     audio.preload = "auto";
     audio.src = url;
+    if (!readVoiceEnabled()) {
+      stopPlayback();
+      return Promise.resolve();
+    }
     return audio.play().then(
       () => {
-        if (transcriptEpoch.current !== epoch || audioRef.current !== audio) {
+        if (transcriptEpoch.current !== epoch || audioRef.current !== audio || !readVoiceEnabled()) {
           audio.pause();
           audio.removeAttribute("src");
           audio.load();
+          if (audioRef.current === audio) audioRef.current = null;
         }
       },
       async (cause: unknown) => {
