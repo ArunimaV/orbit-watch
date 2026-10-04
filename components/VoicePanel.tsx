@@ -23,6 +23,44 @@ interface RenderState {
   mock?: boolean;
 }
 
+interface BriefPayload {
+  text: string;
+  mock?: boolean;
+  message?: string;
+  source?: "grok" | "local";
+  error?: string;
+}
+
+function briefCacheKey(norad: number, encounterId: string | null): string {
+  return `${norad}|${encounterId ?? ""}|${listenerZone()}`;
+}
+
+function postBrief(input: {
+  norad: number;
+  encounterId: string | null;
+  localOnly?: boolean;
+  signal?: AbortSignal;
+}): Promise<BriefPayload> {
+  return fetch("/api/brief", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    signal: input.signal,
+    body: JSON.stringify({
+      norad: input.norad,
+      encounterId: input.encounterId,
+      timeZone: listenerZone(),
+      clientNow: new Date().toISOString(),
+      ...(input.localOnly ? { localOnly: true } : {}),
+    }),
+  }).then(async (response) => {
+    const body = (await response.json()) as BriefPayload;
+    if (!response.ok || !body.text) {
+      throw new Error(body.error ?? body.message ?? "Briefing failed");
+    }
+    return body;
+  });
+}
+
 function lineId(): string {
   return crypto.randomUUID();
 }
@@ -73,6 +111,10 @@ export function VoicePanel({
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const stopPlaybackRef = useRef<() => void>(() => {});
   const transcriptEpoch = useRef(0);
+  const localBriefRef = useRef<{ key: string; text: string } | null>(null);
+  const localPromiseRef = useRef<{ key: string; promise: Promise<string> } | null>(null);
+  const briefPromiseRef = useRef<{ key: string; promise: Promise<BriefPayload> } | null>(null);
+  const briefSettledRef = useRef<{ key: string; body: BriefPayload } | null>(null);
   const dropAssistantRef = useRef(false);
   const logRef = useRef<HTMLDivElement>(null);
 
@@ -130,6 +172,31 @@ export function VoicePanel({
   }, []);
 
   useEffect(() => bindSpeechStop(() => stopPlaybackRef.current()), []);
+
+  useEffect(() => {
+    if (!encounterId) return undefined;
+    const key = briefCacheKey(norad, encounterId);
+    const controller = new AbortController();
+
+    const localPromise = postBrief({ norad, encounterId, localOnly: true, signal: controller.signal })
+      .then((body) => {
+        localBriefRef.current = { key, text: body.text };
+        return body.text;
+      })
+      .catch(() => "");
+    localPromiseRef.current = { key, promise: localPromise };
+
+    const briefPromise = postBrief({ norad, encounterId, signal: controller.signal }).then((body) => {
+      if (!controller.signal.aborted) briefSettledRef.current = { key, body };
+      return body;
+    });
+    briefPromise.catch(() => {
+      if (briefPromiseRef.current?.promise === briefPromise) briefPromiseRef.current = null;
+    });
+    briefPromiseRef.current = { key, promise: briefPromise };
+
+    return () => controller.abort();
+  }, [norad, encounterId]);
 
   useEffect(() => {
     if (!renderOpen) return;
@@ -323,7 +390,8 @@ export function VoicePanel({
       audio.pause();
       const src = audio.src;
       audioRef.current = null;
-      audio.src = "";
+      audio.removeAttribute("src");
+      audio.load();
       if (src.startsWith("blob:")) URL.revokeObjectURL(src);
     }
     playerRef.current?.stop();
@@ -341,41 +409,48 @@ export function VoicePanel({
     stopPlayback();
   }
 
-  async function speak(text: string, epoch: number) {
-    if (!readVoiceEnabled()) return;
-    const response = await fetch("/api/tts", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text }),
-    });
-    const contentType = response.headers.get("content-type") ?? "";
-    if (transcriptEpoch.current !== epoch) return;
-    if (contentType.includes("application/json")) {
-      const body = (await response.json()) as { message?: string };
-      if (body.message) setBanner(body.message);
-      return;
-    }
-    const blob = await response.blob();
-    if (transcriptEpoch.current !== epoch || !readVoiceEnabled()) return;
-    const url = URL.createObjectURL(blob);
-    const audio = new Audio(url);
+  function speak(text: string, epoch: number): Promise<void> {
+    if (transcriptEpoch.current !== epoch || !readVoiceEnabled()) return Promise.resolve();
+    stopPlayback();
+    if (!readVoiceEnabled()) return Promise.resolve();
+    const audio = new Audio();
     audioRef.current = audio;
-    audio.onended = () => URL.revokeObjectURL(url);
+    const url = `/api/tts?text=${encodeURIComponent(text)}`;
+    audio.preload = "auto";
+    audio.src = url;
     if (!readVoiceEnabled()) {
-      audioRef.current = null;
-      URL.revokeObjectURL(url);
-      return;
+      stopPlayback();
+      return Promise.resolve();
     }
-    try {
-      await audio.play();
-    } catch {
-      URL.revokeObjectURL(url);
-    }
+    return audio.play().then(
+      () => {
+        if (transcriptEpoch.current !== epoch || audioRef.current !== audio || !readVoiceEnabled()) {
+          audio.pause();
+          audio.removeAttribute("src");
+          audio.load();
+          if (audioRef.current === audio) audioRef.current = null;
+        }
+      },
+      async (cause: unknown) => {
+        if (transcriptEpoch.current !== epoch || audioRef.current !== audio) return;
+        if (cause instanceof DOMException && cause.name === "NotAllowedError") return;
+        try {
+          const response = await fetch(url);
+          const contentType = response.headers.get("content-type") ?? "";
+          if (!contentType.includes("application/json")) return;
+          const body = (await response.json()) as { message?: string };
+          if (body.message) setBanner(body.message);
+        } catch {
+          // The transcript still shows the briefing when speech cannot start.
+        }
+      },
+    );
   }
 
   async function brief() {
-    if (briefing) return;
+    if (briefing || briefLockRef.current) return;
     const epoch = transcriptEpoch.current;
+    const key = briefCacheKey(norad, encounterId);
     dropAssistantRef.current = false;
     setBriefing(true);
     setError(null);
@@ -383,34 +458,66 @@ export function VoicePanel({
     youLineRef.current = null;
     grokLineRef.current = null;
     userTurnOpenRef.current = false;
-    try {
-      const response = await fetch("/api/brief", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          norad,
-          encounterId,
-          timeZone: listenerZone(),
-          clientNow: new Date().toISOString(),
-        }),
-      });
-      const body = (await response.json()) as {
-        text?: string;
-        mock?: boolean;
-        message?: string;
-        error?: string;
-      };
-      if (!response.ok || !body.text) {
-        throw new Error(body.error ?? body.message ?? "Briefing failed");
+    stopPlayback();
+
+    const id = lineId();
+    let showed = false;
+    const show = (text: string) => {
+      if (transcriptEpoch.current !== epoch || !text) return;
+      if (!showed) {
+        showed = true;
+        grokLineRef.current = null;
+        appendLines([{ id, role: "grok", text }]);
+        return;
       }
+      replaceLine(id, text);
+    };
+
+    try {
+      const settled = briefSettledRef.current;
+      if (settled?.key === key && settled.body.text) {
+        show(settled.body.text);
+        if (settled.body.message) setBanner(settled.body.message);
+        if (!settled.body.mock) await speak(settled.body.text, epoch);
+        return;
+      }
+
+      const cachedLocal = localBriefRef.current;
+      if (cachedLocal?.key === key) {
+        show(cachedLocal.text);
+      } else {
+        const pendingLocal =
+          localPromiseRef.current?.key === key
+            ? localPromiseRef.current.promise
+            : postBrief({ norad, encounterId, localOnly: true }).then((body) => body.text);
+        void pendingLocal
+          .then((text) => {
+            if (!showed) show(text);
+          })
+          .catch(() => undefined);
+      }
+
+      let job = briefPromiseRef.current?.key === key ? briefPromiseRef.current.promise : null;
+      if (!job) {
+        job = postBrief({ norad, encounterId });
+        briefPromiseRef.current = { key, promise: job };
+        void job
+          .then((body) => {
+            briefSettledRef.current = { key, body };
+          })
+          .catch(() => {
+            if (briefPromiseRef.current?.promise === job) briefPromiseRef.current = null;
+          });
+      }
+      const body = await job;
       if (transcriptEpoch.current !== epoch) return;
-      const id = lineId();
-      grokLineRef.current = null;
-      appendLines([{ id, role: "grok", text: body.text }]);
+      briefSettledRef.current = { key, body };
+      show(body.text);
       if (body.message) setBanner(body.message);
       if (!body.mock) await speak(body.text, epoch);
     } catch (cause) {
       if (transcriptEpoch.current !== epoch) return;
+      if (cause instanceof DOMException && cause.name === "AbortError") return;
       setError(cause instanceof Error ? cause.message : "Briefing failed");
     } finally {
       briefLockRef.current = false;

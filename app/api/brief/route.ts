@@ -27,6 +27,7 @@ export async function POST(request: Request) {
   const timeZone = typeof record.timeZone === "string" ? record.timeZone : "UTC";
   const encounterId = typeof record.encounterId === "string" ? record.encounterId : null;
   const clientNow = parseClientNow(record.clientNow);
+  const localOnly = record.localOnly === true;
 
   try {
     const briefing = await createBriefing({
@@ -34,6 +35,7 @@ export async function POST(request: Request) {
       timeZone,
       encounterId,
       toolOptions: clientNow ? { clientNow } : undefined,
+      localOnly,
     });
     return NextResponse.json(briefing);
   } catch (error) {
