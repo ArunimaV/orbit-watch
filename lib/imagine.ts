@@ -2,6 +2,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { DEMO_ENCOUNTER_NORAD, DEMO_NORAD } from "./constants";
+import { findLookupEvent } from "./lookup";
 import { findEventById, loadConjunctionSource, makeEventId } from "./socrates";
 import { readXaiApiKey, requestImage } from "./xai";
 import { MISSING_KEY_MESSAGE } from "./xai-config";
@@ -100,7 +101,7 @@ const GENERIC_IMAGINE_PROMPT = `${PHOTO_STYLE} The CubeSat is SwissCube and the 
 export function imaginePromptFor(id: string, root = process.cwd()): string {
   let found: ReturnType<typeof findEventById> = null;
   try {
-    found = findEventById(loadConjunctionSource(root).snapshot, id);
+    found = findEventById(loadConjunctionSource(root).snapshot, id) ?? findLookupEvent(id, root);
   } catch {
     found = null;
   }
