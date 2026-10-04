@@ -80,9 +80,10 @@ export async function deliverShare(
   host?: ShareHost,
 ): Promise<"shared" | "copied" | "cancelled" | "failed"> {
   const nav = host ?? (typeof navigator === "undefined" ? undefined : navigator);
-  if (nav && prefersWebShare(nav)) {
+  const share = nav?.share;
+  if (nav && typeof share === "function" && prefersWebShare(nav)) {
     try {
-      await nav.share({ title: "Orbit Watch alert", text });
+      await share({ title: "Orbit Watch alert", text });
       return "shared";
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return "cancelled";
