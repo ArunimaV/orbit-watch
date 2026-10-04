@@ -24,3 +24,9 @@ export function formatCountdown(tcaMs: number, nowMs: number): string {
 export function socratesTableUrl(norad: number): string {
   return `https://celestrak.org/SOCRATES/table-socrates.php?CATNR=${norad}&ORDER=MINRANGE&MAX=25`;
 }
+
+export function threatHeadline(count: number, satelliteName: string, when: string | null): string {
+  const threats = count === 1 ? "1 real threat" : `${count} real threats`;
+  const day = when ? ` ${when}` : "";
+  return `Heads up: ${threats} to ${satelliteName}${day}`;
+}

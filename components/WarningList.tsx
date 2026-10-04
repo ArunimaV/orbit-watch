@@ -5,6 +5,7 @@ import { Countdown } from "@/components/Countdown";
 import { TcaTime } from "@/components/TcaTime";
 import { VerifyLink } from "@/components/VerifyLink";
 import { DEMO_ENCOUNTER_NORAD, DEMO_NORAD } from "@/lib/constants";
+import { formatApproachTime } from "@/lib/time-format";
 import { subscribeFocusEncounter } from "@/lib/focus";
 import type { DismissedGroup, RankedEvent, Tier } from "@/lib/types";
 
@@ -45,12 +46,14 @@ export function WarningList({
   onNorad,
   onEvaluated,
   startedAt,
+  onThreat,
 }: {
   selectedId: string | null;
   onSelect: (event: RankedEvent | null) => void;
   onNorad?: (norad: number) => void;
   onEvaluated?: (nowIso: string) => void;
   startedAt: number | null;
+  onThreat?: (threat: { count: number; satelliteName: string; when: string | null }) => void;
 }) {
   const [draft, setDraft] = useState(String(DEMO_NORAD));
   const [norad, setNorad] = useState(String(DEMO_NORAD));
@@ -64,6 +67,8 @@ export function WarningList({
   rankedRef.current = data?.ranked ?? [];
   const onEvaluatedRef = useRef(onEvaluated);
   onEvaluatedRef.current = onEvaluated;
+  const onThreatRef = useRef(onThreat);
+  onThreatRef.current = onThreat;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -84,6 +89,14 @@ export function WarningList({
         setData(body);
         setError(null);
         if (body.now) onEvaluatedRef.current?.(body.now);
+        const acts = body.ranked.filter((item) => item.tier === "Act");
+        const zone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+        const when = acts[0] && body.now ? formatApproachTime(acts[0].tca, zone, new Date(body.now)).relative : null;
+        onThreatRef.current?.({
+          count: acts.length,
+          satelliteName: body.satelliteName,
+          when,
+        });
         onNorad?.(body.norad);
         const stillSelected = body.ranked.some((item) => item.id === selectedIdRef.current);
         if (!stillSelected) {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { countdownClockMs, formatCountdown, socratesTableUrl } from "./countdown";
+import { countdownClockMs, formatCountdown, socratesTableUrl, threatHeadline } from "./countdown";
 
 const DEMO_NOW = Date.parse("2026-10-04T16:00:00.000Z");
 const SL8 = Date.parse("2026-10-05T01:26:28.592Z");
@@ -24,5 +24,10 @@ describe("countdown clock", () => {
     expect(socratesTableUrl(35932)).toBe(
       "https://celestrak.org/SOCRATES/table-socrates.php?CATNR=35932&ORDER=MINRANGE&MAX=25",
     );
+  });
+
+  it("writes the heads-up in one line", () => {
+    expect(threatHeadline(1, "SwissCube", "tonight")).toBe("Heads up: 1 real threat to SwissCube tonight");
+    expect(threatHeadline(2, "SwissCube", null)).toBe("Heads up: 2 real threats to SwissCube");
   });
 });

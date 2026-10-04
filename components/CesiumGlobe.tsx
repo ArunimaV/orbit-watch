@@ -22,6 +22,7 @@ import {
 } from "cesium";
 import { useCesium, Viewer } from "resium";
 import { VerifyLink } from "@/components/VerifyLink";
+import { DEMO_ENCOUNTER_NORAD, DEMO_NORAD } from "@/lib/constants";
 import { formatCountdown, countdownClockMs } from "@/lib/countdown";
 import type { TrackSample } from "@/lib/encounter";
 import { subscribeFocusEncounter } from "@/lib/focus";
@@ -89,6 +90,7 @@ function EncounterScene({
   tcaIndex,
   labelRef,
   flyToken,
+  onFlown,
 }: {
   ours: TrackSample[];
   other: TrackSample[];
@@ -96,9 +98,12 @@ function EncounterScene({
   tcaIndex: number;
   labelRef: { current: string };
   flyToken: number;
+  onFlown?: () => void;
 }) {
   const { viewer } = useCesium();
   const dots = useRef<{ ours: Entity | null; other: Entity | null }>({ ours: null, other: null });
+  const onFlownRef = useRef(onFlown);
+  onFlownRef.current = onFlown;
 
   useEffect(() => {
     if (!viewer || viewer.isDestroyed()) return undefined;
@@ -180,9 +185,12 @@ function EncounterScene({
     scene.camera.flyToBoundingSphere(sphere, {
       duration: 1.8,
       offset: new HeadingPitchRange(0, CesiumMath.toRadians(-40), Math.max(sphere.radius * 1.7, 1_600_000)),
+      complete: () => onFlownRef.current?.(),
     });
+    const flownBackup = window.setTimeout(() => onFlownRef.current?.(), 2200);
 
     return () => {
+      window.clearTimeout(flownBackup);
       dots.current = { ours: null, other: null };
       if (!scene.isDestroyed()) scene.entities.removeAll();
     };
@@ -206,10 +214,12 @@ export default function CesiumGlobe({
   event,
   evaluatedAt,
   startedAt,
+  onDemoFlown,
 }: {
   event: RankedEvent | null;
   evaluatedAt: string | null;
   startedAt: number | null;
+  onDemoFlown?: () => void;
 }) {
   const [baseLayer, setBaseLayer] = useState<ImageryLayer | null>(null);
   const [encounter, setEncounter] = useState<EncounterPayload | null>(null);
@@ -222,6 +232,8 @@ export default function CesiumGlobe({
   const [renderPending, setRenderPending] = useState(false);
   const [tick, setTick] = useState<number | null>(null);
   const labelRef = useRef("");
+  const onFlownRef = useRef(onDemoFlown);
+  onFlownRef.current = onDemoFlown;
   const terrainProvider = useMemo(() => new EllipsoidTerrainProvider(), []);
 
   useEffect(() => {
@@ -332,6 +344,10 @@ export default function CesiumGlobe({
       }${remaining ? `\n${remaining}` : ""}`
     : "";
   labelRef.current = label;
+  const demoPair = event?.ours.noradId === DEMO_NORAD && event?.other.noradId === DEMO_ENCOUNTER_NORAD;
+  const notifyFlown = () => {
+    if (demoPair) onFlownRef.current?.();
+  };
 
   return (
     <section className="relative flex h-full min-h-[320px] flex-col border-edge bg-panel md:border-x">
@@ -368,6 +384,7 @@ export default function CesiumGlobe({
                 tcaIndex={tcaIndex}
                 labelRef={labelRef}
                 flyToken={flyToken}
+                onFlown={notifyFlown}
               />
             )}
           </Viewer>
