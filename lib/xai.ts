@@ -169,7 +169,9 @@ export async function requestTextBrief(
 export async function requestSpeech(
   text: string,
   options: XaiFetchOptions = {},
-): Promise<{ ok: true; audio: Uint8Array } | { ok: false; mock: true; status: number; message: string }> {
+): Promise<
+  { ok: true; body: ReadableStream<Uint8Array> } | { ok: false; mock: true; status: number; message: string }
+> {
   const apiKey = options.apiKey === undefined ? readXaiApiKey() : options.apiKey;
   if (!apiKey) return { ok: false, mock: true, status: 200, message: MISSING_KEY_MESSAGE };
 
@@ -209,14 +211,15 @@ export async function requestSpeech(
     if (bytes.byteLength < 8) {
       return { ok: false, mock: true, status: 502, message: "xAI text-to-speech audio was empty." };
     }
-    return { ok: true, audio: new Uint8Array(bytes) };
+    const stream = new Response(bytes).body;
+    if (!stream) return { ok: false, mock: true, status: 502, message: "xAI text-to-speech audio was empty." };
+    return { ok: true, body: stream };
   }
 
-  const audio = new Uint8Array(await response.arrayBuffer());
-  if (audio.byteLength < 8) {
+  if (!response.body) {
     return { ok: false, mock: true, status: 502, message: "xAI text-to-speech returned empty audio." };
   }
-  return { ok: true, audio };
+  return { ok: true, body: response.body };
 }
 
 export interface GeneratedImage {
